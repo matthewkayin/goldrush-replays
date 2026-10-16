@@ -1,0 +1,22 @@
+{
+  "analyzer_version": 1,
+  "replay_version": 0,
+  "map_type": "tombstone",
+  "duration_ticks": 51764,
+  "players": [
+    {
+      "slot": 0,
+      "name": "stew",
+      "team": 0,
+      "color": "green",
+      "defeated_at_tick": null
+    },
+    {
+      "slot": 1,
+      "name": "Bot",
+      "team": 1,
+      "color": "red",
+      "defeated_at_tick": null
+    }
+  ]
+}

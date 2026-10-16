@@ -1,3 +1,4 @@
+#include "analysis.h"
 #include "replay.h"
 
 #include <cstdio>
@@ -39,29 +40,55 @@ static std::vector<uint8_t> read_input_bytes(const char *path) {
   return read_all(file);
 }
 
-// Active players only; inactive slots are left out.
-static Json players_json(const ReplayHeader &header) {
-  Json players = Json::array();
-  for (uint32_t slot = 0; slot < MAX_PLAYERS; slot++) {
-    const MatchPlayer &player = header.players[slot];
-    if (player.mode == PLAYER_MODE_INACTIVE) {
-      continue;
-    }
-    players.push_back({
-        {"slot", slot},
-        {"name", player.name},
-        {"team", player.team},
-        {"color", player_color_name(player.recolor_id)},
-    });
-  }
-  return players;
+static bool is_active_slot(const ReplayHeader &header, uint32_t slot) {
+  return header.players[slot].mode != PLAYER_MODE_INACTIVE;
 }
 
+static Json player_json(const ReplayHeader &header, uint32_t slot) {
+  const MatchPlayer &player = header.players[slot];
+  return {
+      {"slot", slot},
+      {"name", player.name},
+      {"team", player.team},
+      {"color", player_color_name(player.recolor_id)},
+  };
+}
+
+// Players lists hold active slots only; inactive slots are left out.
 static Json header_json(const ReplayHeader &header) {
+  Json players = Json::array();
+  for (uint32_t slot = 0; slot < MAX_PLAYERS; slot++) {
+    if (is_active_slot(header, slot)) {
+      players.push_back(player_json(header, slot));
+    }
+  }
   return {
       {"replay_version", header.version},
       {"map_type", map_type_name(header.map_type)},
-      {"players", players_json(header)},
+      {"players", players},
+  };
+}
+
+static Json analysis_json(const ReplayHeader &header,
+                          const Analysis &analysis) {
+  Json players = Json::array();
+  for (uint32_t slot = 0; slot < MAX_PLAYERS; slot++) {
+    if (!is_active_slot(header, slot)) {
+      continue;
+    }
+    const PlayerAnalysis &player = analysis.players[slot];
+    Json json = player_json(header, slot);
+    json["defeated_at_tick"] = player.defeated_at_tick.has_value()
+                                   ? Json(*player.defeated_at_tick)
+                                   : Json(nullptr);
+    players.push_back(json);
+  }
+  return {
+      {"analyzer_version", ANALYZER_VERSION},
+      {"replay_version", header.version},
+      {"map_type", map_type_name(header.map_type)},
+      {"duration_ticks", analysis.duration_ticks},
+      {"players", players},
   };
 }
 
@@ -82,8 +109,11 @@ int main(int argc, char **argv) {
       return 0;
     }
     if (strcmp(command, "analyze") == 0) {
-      fprintf(stderr, "%s: not implemented yet\n", command);
-      return 1;
+      std::vector<uint8_t> bytes = read_input_bytes(path);
+      Replay replay = replay_read(bytes);
+      Analysis analysis = analyze_replay(replay);
+      std::cout << analysis_json(replay.header, analysis).dump(2) << "\n";
+      return 0;
     }
   } catch (const std::exception &e) {
     fprintf(stderr, "analyzer: %s\n", e.what());

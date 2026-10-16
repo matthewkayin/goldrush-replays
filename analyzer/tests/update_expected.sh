@@ -9,4 +9,5 @@ analyzer="$analyzer_dir/build/analyzer"
 
 for replay in "$analyzer_dir"/test_replays/*.rep; do
     "$analyzer" header "$replay" >"${replay%.rep}.header.json"
+    "$analyzer" analyze "$replay" >"${replay%.rep}.analysis.json"
 done

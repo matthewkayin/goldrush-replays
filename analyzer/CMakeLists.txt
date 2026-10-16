@@ -19,7 +19,7 @@ add_library(simulation STATIC ${SIMULATION_SOURCES})
 target_include_directories(simulation SYSTEM PUBLIC src)
 target_compile_options(simulation PRIVATE -w)
 
-add_executable(analyzer src/main.cpp src/replay.cpp)
+add_executable(analyzer src/main.cpp src/replay.cpp src/analysis.cpp)
 target_compile_options(analyzer PRIVATE -Wall -Wextra -Wshadow)
 target_include_directories(analyzer SYSTEM PRIVATE vendor)
 target_link_libraries(analyzer PRIVATE simulation)
@@ -50,6 +50,9 @@ foreach(replay ${TEST_REPLAYS})
     add_replay_test(header_${name} header ${replay}
         -DEXPECTED=${dir}/${name}.header.json
         -DACTUAL=${CMAKE_CURRENT_BINARY_DIR}/test_output/${name}.header.json)
+    add_replay_test(analyze_${name} analyze ${replay}
+        -DEXPECTED=${dir}/${name}.analysis.json
+        -DACTUAL=${CMAKE_CURRENT_BINARY_DIR}/test_output/${name}.analysis.json)
 endforeach()
 
 # Reading from stdin must give the same output as reading the file.
@@ -64,4 +67,5 @@ file(GLOB INVALID_REPLAYS CONFIGURE_DEPENDS test_replays/invalid/*.rep)
 foreach(replay ${INVALID_REPLAYS})
     get_filename_component(name ${replay} NAME_WE)
     add_replay_test(header_rejects_${name} header ${replay} -DEXPECT_FAILURE=ON)
+    add_replay_test(analyze_rejects_${name} analyze ${replay} -DEXPECT_FAILURE=ON)
 endforeach()

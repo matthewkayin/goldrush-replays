@@ -108,9 +108,10 @@ The analyzer computes these for every player in the match. Time series are sampl
 | Units made / lost | Counts by entity type, from `ENTITY_CREATED` and `ENTITY_KILLED` |
 | Kill/death trades | `ENTITY_KILLED` events, grouped by attacker owner and defender owner and by entity type |
 | Supply blocked | Count of `SUPPLY_BLOCKED` events, and time spent blocked |
-| Result | See the win/loss rule below |
+| Result | The analyzer reports each player's `defeated_at_tick`: the first tick in which their `players[p].mode` is `DEFEATED`, from losing all buildings or entities or from a `DISCONNECT` entry, or null if they were still active when the replay ended. The worker turns these into win/loss with the rule below. |
 
 ### Win/loss rule
+Applied by the worker, using `defeated_at_tick` from the analyzer and the replay's `uploader_slot`. The analyzer doesn't know who uploaded the replay.
 - A player who disconnects or leaves has lost. `DISCONNECT` entries are applied as defeat.
 - The last team with at least one active player wins. Everyone else loses.
 - A replay stops recording when the uploader leaves. So if it ends with more than one team still active, the uploader left while an opponent was still in the game: the uploader's team loses, and the other teams still active win.
@@ -229,6 +230,9 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-16: Server TypeScript runs through Node 24's native type stripping instead of a build step or `tsx`, and `packages/shared` is consumed as TypeScript source. This keeps the toolchain small. It requires erasable-only TypeScript syntax.
 - 2026-10-16: `analyzer header` parses the whole entry stream, not just the header, so truncated or malformed uploads are rejected at upload time instead of failing later in the worker. It still doesn't simulate. A file cut exactly between two entries can't be detected.
 - 2026-10-16: Besides the bad signature, unknown version and truncation cases, the reader rejects a map type or map size out of range, a player with a mode other than inactive/active, an unterminated name, a color ≥ 4 or a team ≥ 4, an entry before the first turn, an unknown entry or input type, an input whose length is 0, over 1024 or different from its contents, a selection over 20 entities, a disconnect of a player id ≥ 4, and a replay with no turns.
+- 2026-10-16: The analyzer reports each player's `defeated_at_tick`, and the worker applies the win/loss rule using `uploader_slot`. The rule needs the uploader, which the analyzer never sees, so keeping it in the worker keeps the analyzer's output independent of who uploaded.
+- 2026-10-16: Defeat is found by checking `players[p].mode` after every tick, because the simulation never emits `PLAYER_DEFEATED`. `DISCONNECT` entries set `mode` to `DEFEATED` when their turn is applied, as the old backend did, so they're caught the same way.
+- 2026-10-16: The simulation's event queue (`MATCH_MAX_EVENTS`) is raised from 32 to 1024 in the analyzer's copy, and the analyzer drains it after every input and every tick. The queue has no overflow check, so overflowing it would silently lose events. The analyzer fails the analysis if it ever finds more events than the capacity. Nothing in the simulation reads the queue, so the change doesn't affect the simulation, and it made no measurable difference to run time.
 
 ## Open questions
 None at this time.

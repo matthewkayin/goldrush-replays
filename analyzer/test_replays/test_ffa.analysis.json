@@ -1,0 +1,36 @@
+{
+  "analyzer_version": 1,
+  "replay_version": 0,
+  "map_type": "klondike",
+  "duration_ticks": 65568,
+  "players": [
+    {
+      "slot": 0,
+      "name": "bread",
+      "team": 0,
+      "color": "green",
+      "defeated_at_tick": null
+    },
+    {
+      "slot": 1,
+      "name": "Bot",
+      "team": 1,
+      "color": "red",
+      "defeated_at_tick": null
+    },
+    {
+      "slot": 2,
+      "name": "Bot",
+      "team": 2,
+      "color": "blue",
+      "defeated_at_tick": null
+    },
+    {
+      "slot": 3,
+      "name": "Bot",
+      "team": 3,
+      "color": "purple",
+      "defeated_at_tick": null
+    }
+  ]
+}

@@ -41,7 +41,7 @@
 #define MATCH_MAX_PROJECTILES 32U
 #define MATCH_MAX_FIRES 256U
 #define MATCH_MAX_FOG_REVEALS 32U
-#define MATCH_MAX_EVENTS 32U
+#define MATCH_MAX_EVENTS 1024U // ANALYZER: was 32U; the queue has no overflow check, and the analyzer drains it instead of the game client
 #define MATCH_MAX_UNITS (MATCH_MAX_POPULATION * MAX_PLAYERS)
 #define ENTITY_PATH_INDEX_NONE MATCH_MAX_UNITS
 #define ENTITY_TARGET_QUEUE_INDEX_NONE MATCH_MAX_UNITS
