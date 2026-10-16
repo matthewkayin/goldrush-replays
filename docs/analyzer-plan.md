@@ -112,6 +112,12 @@ Every change is marked `// ANALYZER: <reason>`. `.claude/hooks/format.sh` skips 
 
 **Verify:** `pnpm test` (CTest + node tests) and `pnpm typecheck`. Then make a deliberate field-name change in one expected file: the schema test must fail. Revert the change.
 
+**Phase 6 notes (2026-10-16):**
+- `packages/shared` gained `@types/node` (dev) for the test. The tests have their own `test/tsconfig.json` with `types: ["node"]`, so the shared source, which the web app also imports, still can't use Node globals. `typecheck` runs `tsc` on both.
+- `analysisSchema` pins `analyzer_version: 1` and `sample_interval_ticks: 60`. Unit-count objects use `z.partialRecord`, since zero counts are left out.
+- Renaming `units_lost` to `units_lots` in `test_loss.analysis.json` failed the test with `Unrecognized key: "units_lots"`. The file was restored.
+- `pnpm test`: 18 CTest tests and 8 node tests pass. `pnpm typecheck` passes.
+
 ---
 
 ## End-of-story check against the acceptance criteria

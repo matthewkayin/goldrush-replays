@@ -11,8 +11,9 @@
     "dev": "pnpm build:analyzer && pnpm -r --parallel dev",
     "build": "pnpm build:analyzer && pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm test:analyzer",
-    "test:analyzer": "ctest --test-dir analyzer/build --output-on-failure"
+    "test": "pnpm test:analyzer && pnpm test:ts",
+    "test:analyzer": "ctest --test-dir analyzer/build --output-on-failure",
+    "test:ts": "pnpm -r test"
   },
   "devDependencies": {
     "prettier": "^3.9.10"

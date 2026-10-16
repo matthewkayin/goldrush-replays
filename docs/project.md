@@ -242,5 +242,7 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-16: A player's `kills` and `units_lost` count units only, so they can be compared. Kills of allies don't count. The `kills` event list also has buildings. Landmines aren't buildings for `buildings_built`.
 - 2026-10-16: Output names for entity types and upgrades are snake_case ids defined in the analyzer (`cowboy`, `war_wagon`), not the game's display names.
 
+- 2026-10-16: The analyzer's JSON output is described by strict Zod schemas in `packages/shared` (`replayHeaderSchema`, `analysisSchema`). A `node --test` test parses every saved expected file with them, so the C++ output and the TypeScript types can't drift apart unnoticed. `analysisSchema` accepts only `analyzer_version` 1; bumping the version means updating the schema too.
+
 ## Open questions
 None at this time.
