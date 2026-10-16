@@ -58,10 +58,10 @@ docs/
 - Node 24 LTS, Fastify, Zod for request and response validation (through `fastify-type-provider-zod`), and pnpm workspaces.
 - TypeScript runs directly through Node's built-in type stripping, so the server has no build step. This is why `erasableSyntaxOnly` is on (no enums, namespaces or parameter properties). `packages/shared` is consumed as TypeScript source by both the server and Vite, so it has no build step either.
 - **No ORM.** The database is accessed through `better-sqlite3` with handwritten SQL in a small repository module per table (e.g. `db/replays.ts`). Every query uses prepared statements with bound parameters.
-- Migrations are plain numbered `.sql` files in `apps/server/sql/`. A small runner applies them in order and records progress in `PRAGMA user_version`.
+- Migrations are plain numbered `.sql` files in `apps/server/sql/`. A small runner (`src/db/migrate.ts`) applies them in order, each in its own transaction, and records the last applied number in `PRAGMA user_version`. `openDb()` in `src/db/connection.ts` sets the pragmas and runs the migrations, and both the API and the worker open the database through it. A migration file is never edited once it exists; schema changes go in a new file.
 - SQLite runs in WAL mode with `foreign_keys=ON` and a busy timeout, so the API and worker processes can share the one database file.
 - **Binary data lives in SQLite.** Replay files and analysis results are stored as BLOB columns, each in its own table, so list queries never read them. Analysis JSON is gzipped before it is stored. The database is the only storage.
-- Auth: username and password accounts that belong to the site and have nothing to do with Steam. Passwords are hashed with argon2id. Sessions live in an SQLite `sessions` table and are referenced by an httpOnly, SameSite=Lax cookie.
+- Auth: username and password accounts that belong to the site and have nothing to do with Steam. Passwords are hashed with argon2id. Sessions live in an SQLite `sessions` table and are referenced by an httpOnly, SameSite=Lax cookie holding a random token. The table stores the token's SHA-256 hash, not the token.
 - Job queue: a `jobs` table in SQLite. The worker polls about once a second and claims a job atomically (`UPDATE … WHERE status='queued' … RETURNING`). It reads the replay BLOB and pipes it to `analyzer analyze` on stdin. The analyzer gets a 120 s timeout, and worker concurrency is configurable (default 2). A job gets 3 attempts and then the replay is marked `failed`. Jobs left `running` from a crashed worker are requeued when the worker starts.
 
 ### Upload flow
@@ -70,15 +70,20 @@ docs/
 3. The worker processes the job and sets status `processed`, or `failed` with an error.
 
 ### Data model (initial)
-- `users`: id, username (unique), password_hash, created_at
-- `sessions`: id, user_id, expires_at
-- `replays`: id, uploader_user_id, original_filename, replay_version, map_type, uploader_slot, status (`awaiting_player` | `queued` | `processing` | `processed` | `failed`), error, duration_ticks, uploaded_at, processed_at
-- `replay_files`: replay_id (PK, FK), size_bytes, data BLOB holding the original `.rep` bytes
+The whole schema is created by `apps/server/sql/001_init.sql`, including what the "Later" features need. All tables are `STRICT`. Timestamps are ISO-8601 TEXT in the format JS `toISOString()` writes (`YYYY-MM-DDTHH:MM:SS.sssZ`). IDs are `INTEGER PRIMARY KEY` rowids, except `sessions.id`. Every table that hangs off a replay is deleted with it (`ON DELETE CASCADE`), and replays and sessions are deleted with their user.
+- `users`: id, username (unique, case-sensitive), password_hash (argon2id), created_at
+- `sessions`: id (SHA-256 hex of the cookie token, so the raw token is only ever in the cookie), user_id, created_at, expires_at
+- `replays`: id, uploader_user_id, original_filename, replay_version, map_type, uploader_slot (NULL until chosen), status (`awaiting_player` | `queued` | `processing` | `processed` | `failed`), error, duration_ticks (NULL until processed), uploaded_at, processed_at
+  - Any status other than `awaiting_player` requires `uploader_slot`.
+- `replay_files`: replay_id (PK, FK), data BLOB holding the original `.rep` bytes. The size is `length(data)`, which SQLite answers without reading the BLOB.
 - `replay_analyses`: replay_id (PK, FK), analyzer_version, data BLOB holding the gzipped analysis JSON (full time series and event lists, which the match page loads whole)
-- `jobs`: id, replay_id, status, attempts, locked_at, last_error
-- `match_players`: replay_id, slot, name, team, color, result (`win` | `loss`), defeated_at_tick, and summary stats: apm, gold_mined_total, peak_army_population, peak_army_value, units_built, units_lost, kills, buildings_built, upgrades_completed, supply_blocked_ticks
+- `jobs`: id, replay_id, status (`queued` | `running` | `done` | `failed`), attempts, locked_at, last_error, created_at
+  - A replay gets a new job row each time it is queued, so reprocessing is another INSERT. At most one job per replay can be `queued` or `running`.
+- `match_players`: replay_id, slot, name, team, color, result (`win` | `loss`), defeated_at_tick, and summary stats: apm, gold_mined_total, peak_army_population, peak_army_value, units_built, units_lost, kills, buildings_built, upgrades_completed, supply_blocked_count, supply_blocked_ticks
+  - Rows are inserted at upload from `analyzer header` (slot, name, team, color), so every status can show the players. `result`, `defeated_at_tick` and the stats stay NULL until the worker fills them in. A NULL `defeated_at_tick` on a processed replay means the player was still active at the end.
   - Every player in a match gets a row, so the match page can show them all.
   - Profiles, trends and leaderboards only use rows where `slot = replays.uploader_slot`. Stats are never linked to another account by player name.
+- `CHECK` constraints cover the values the server defines (statuses, `result`) and `color`. `map_type` is validated by the Zod analyzer schemas only, so a new map doesn't need a migration.
 
 The full analysis goes in a BLOB because only one match page ever reads it. Summary stats go in SQL columns so the cross-match pages planned for later are plain queries.
 
@@ -243,6 +248,15 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-16: Output names for entity types and upgrades are snake_case ids defined in the analyzer (`cowboy`, `war_wagon`), not the game's display names.
 
 - 2026-10-16: The analyzer's JSON output is described by strict Zod schemas in `packages/shared` (`replayHeaderSchema`, `analysisSchema`). A `node --test` test parses every saved expected file with them, so the C++ output and the TypeScript types can't drift apart unnoticed. `analysisSchema` accepts only `analyzer_version` 1; bumping the version means updating the schema too.
+- 2026-10-16: The whole Release 1 schema (and what "Later" needs) is created up front by `001_init.sql`, so stories built in parallel share fixed tables instead of each adding migrations.
+- 2026-10-16: `match_players` rows are inserted at upload from `analyzer header`, with result and stats NULL until processed, so player names are available at every status from one place.
+- 2026-10-16: IDs are integer rowids. Match URLs can be enumerated, which is fine while all matches are public.
+- 2026-10-16: `sessions.id` is the SHA-256 of the cookie token, so a copy of the database can't be used to hijack sessions.
+- 2026-10-16: Timestamps are ISO-8601 TEXT in the `toISOString()` format, so they are readable in the sqlite3 shell and still sort as strings.
+- 2026-10-16: Usernames are unique case-sensitively.
+- 2026-10-16: A replay gets a new `jobs` row each time it is queued (statuses `queued`, `running`, `done`, `failed`), with a partial unique index allowing only one active job per replay. Reprocessing later is just another INSERT, and old rows keep their errors.
+- 2026-10-16: `match_players` stores `supply_blocked_count` too, so it holds every field of the analyzer's per-player summary.
+- 2026-10-16: `replay_files` stays a separate table rather than a column on `replays`. Replays are 40–80 KB, and SQLite keeps up to a page of a large BLOB in the row itself, so a BLOB column would make every `replays` row about a page and slow list and aggregate queries. `size_bytes` is dropped because `length(data)` gives it.
 
 ## Open questions
 None at this time.
