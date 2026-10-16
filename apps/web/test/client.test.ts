@@ -1,26 +1,12 @@
 // Checks how the API client turns responses into values or ApiErrors, since
 // every page relies on it to show server errors.
 import assert from "node:assert/strict";
-import { test, type TestContext } from "node:test";
+import { test } from "node:test";
 import { z } from "zod";
 import { ApiError, apiGet, apiPost } from "../src/api/client.ts";
+import { stubFetch } from "./stub-fetch.ts";
 
 const thingSchema = z.object({ name: z.string() });
-
-// Makes fetch return `response` for the rest of the test, and records the
-// requests it was called with.
-function stubFetch(t: TestContext, response: Response): Request[] {
-  const requests: Request[] = [];
-  t.mock.method(
-    globalThis,
-    "fetch",
-    async (input: string, init: RequestInit) => {
-      requests.push(new Request(new URL(input, "http://test"), init));
-      return response;
-    },
-  );
-  return requests;
-}
 
 test("parses a successful response with the schema", async (t) => {
   stubFetch(t, Response.json({ name: "stew" }));

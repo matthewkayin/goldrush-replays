@@ -9,6 +9,8 @@ import {
 } from "fastify-type-provider-zod";
 import type Database from "better-sqlite3";
 import type { ApiError } from "@goldrush/shared";
+import { registerCurrentUser } from "./auth/current-user.ts";
+import { authRoutes } from "./routes/auth.ts";
 import { healthRoutes } from "./routes/health.ts";
 
 export interface AppOptions {
@@ -48,8 +50,13 @@ export function buildApp({ db, logger }: AppOptions) {
     return reply.status(404).send(errorBody("Not found"));
   });
 
+  // Sets request.user on every request; see requireUser for routes that
+  // need a signed-in user.
+  registerCurrentUser(app, db);
+
   const routeOptions: RouteOptions = { db };
   app.register(healthRoutes, routeOptions);
+  app.register(authRoutes, routeOptions);
 
   return app;
 }

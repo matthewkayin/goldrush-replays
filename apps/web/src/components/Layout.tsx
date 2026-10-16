@@ -1,6 +1,7 @@
 import { AppBar, Box, Container, Link, Toolbar } from "@mui/material";
 import { Link as RouterLink, Outlet } from "react-router";
 import { colors } from "../theme.ts";
+import { AccountMenu } from "./AccountMenu.tsx";
 
 // The header and page frame shared by every page.
 export function Layout() {
@@ -18,7 +19,8 @@ export function Layout() {
             Gold Rush Replays
           </Link>
           <Box sx={{ flexGrow: 1 }} />
-          {/* Navigation and sign-in state go here. */}
+          {/* Navigation links go here, before the account menu. */}
+          <AccountMenu />
         </Toolbar>
       </AppBar>
       <Container>
