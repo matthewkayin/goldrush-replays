@@ -1,0 +1,92 @@
+#pragma once
+
+#include "simulation/defines.h"
+#include "simulation/container/fixed_queue.h"
+#include <cstdint>
+#include <cstring> // ANALYZER: memset/memcpy were only declared through transitive includes
+
+template <typename T, size_t capacity>
+struct IdArray {
+    T data[capacity];
+    EntityId ids[capacity];
+    uint16_t id_to_index[ID_MAX];
+    FixedQueue<uint16_t, ID_MAX> available_ids;
+    uint32_t _size;
+
+    IdArray() {
+        memset(data, 0, sizeof(data));
+        for (uint32_t index = 0; index < capacity; index++) {
+            ids[index] = INDEX_INVALID;
+        }
+        for (uint32_t id = 0; id < ID_MAX; id++) {
+            id_to_index[id] = (uint16_t)INDEX_INVALID;
+        }
+        for (uint16_t entity_id = 0; entity_id < ID_MAX; entity_id++) {
+            available_ids.push(entity_id);
+        }
+        _size = 0;
+    }
+
+    T& operator[](uint32_t index) {
+        return data[index];
+    }
+    const T& operator[](uint32_t index) const {
+        return data[index];
+    }
+    T& get_by_id(EntityId id) {
+        uint32_t index = get_index_of(id);
+        return data[index];
+    }
+    const T& get_by_id(EntityId id) const {
+        uint32_t index = get_index_of(id);
+        return data[index];
+    }
+
+    uint32_t get_index_of(EntityId id) const {
+        if (id == ID_NULL) {
+            return INDEX_INVALID;
+        }
+        return id_to_index[id];
+    }
+    EntityId get_id_of(uint32_t index) const {
+        return ids[index];
+    }
+
+    size_t size() const {
+        return _size;
+    }
+
+    bool is_full() const {
+        return _size == capacity;
+    }
+
+    EntityId push_back(const T& value) {
+        EntityId id = available_ids.front();
+        available_ids.pop();
+        id_to_index[id] = _size;
+        ids[_size] = id;
+        data[_size] = value;
+        _size++;
+
+        return id;
+    }
+
+    void remove_at(uint32_t index) {
+        // store the ID for later
+        EntityId id = ids[index];
+
+        // swap
+        data[index] = data[_size - 1];
+        ids[index] = ids[_size - 1];
+        id_to_index[ids[index]] = index;
+
+        // and pop
+        _size--;
+
+        // remove the mapping for this id
+        // this is done after so that if we end up "pop and swapping" with the last element,
+        // we still remove the mapping
+        id_to_index[id] = INDEX_INVALID;
+        available_ids.push(id);
+    }
+};

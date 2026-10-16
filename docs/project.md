@@ -11,7 +11,7 @@ This is a side project. It is built to run on a developer laptop. Production hos
 ## Background: how replays work
 A `.rep` file holds only inputs, not outcomes. It contains a header (signature `0x46591214`, replay version, LCG seed, map type, raw map, 4 × `MatchPlayer`) followed by a stream of per-turn entries (`INPUT`, `CHAT`, `DISCONNECT`, `NEW_TURN`). One turn is 4 ticks, and the game runs 60 ticks per second. The only way to get any metric is to run the deterministic match simulation from the start and observe it.
 
-The game's simulation code, with graphics and sound removed, is in `old-project/backend/src/simulation/`. It is the starting point for the analyzer. On Linux it builds once three missing standard includes (`<cstdint>`, `<cstring>`, `<cstdarg>`) are added. It simulated the 70-second test replay (`old-project/test_replays/`) in about 70 ms.
+The game's simulation code, with graphics and sound removed, is in `old-project/backend/src/simulation/`. It is the starting point for the analyzer. The analyzer copies it into `analyzer/src/simulation/`, leaving out the old backend's driver (`simulation.{h,cpp}`). With GCC 16 that copy builds once `<cstring>` is included in the four files that call `memset`/`memcpy` without it. It simulated the 70-second test replay (`old-project/test_replays/`) in about 70 ms.
 
 Other facts that shape the design:
 - Inputs carry no player id. Ownership has to come from the entities in the input (see APM below).

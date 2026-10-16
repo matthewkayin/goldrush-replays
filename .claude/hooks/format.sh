@@ -11,7 +11,8 @@ file="$(jq -r '.tool_input.file_path // empty')"
 relative="${file#"$project_dir"/}"
 [[ "$relative" != "$file" ]] || exit 0  # outside the project
 case "$relative" in
-    old-project/* | */node_modules/* | node_modules/*) exit 0 ;;
+    # analyzer/src/simulation/ is the game's code; it stays byte-close to the original.
+    old-project/* | analyzer/src/simulation/* | */node_modules/* | node_modules/*) exit 0 ;;
 esac
 
 case "$relative" in

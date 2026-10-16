@@ -1,0 +1,2903 @@
+#include "simulation/core/sound.h"
+#include "simulation/state/entity_data.h"
+#include "simulation/state/match.h"
+
+#include "simulation/state/upgrade.h"
+#include "simulation/util/lcg.h"
+#include "simulation/render/sprite.h"
+
+// Mine
+static const uint32_t MINE_ARM_DURATION = 16;
+static const uint32_t MINE_PRIME_DURATION = 6 * 6;
+static const int MINE_EXPLOSION_DAMAGE = 200;
+
+// Unit
+static const uint32_t UNIT_ENERGY_REGEN_DURATION = 64;
+static const uint32_t UNIT_REPAIR_RATE = 4;
+static const uint32_t UNIT_IN_MINE_DURATION = 150;
+static const uint32_t UNIT_MAX_GOLD_HELD = 5;
+static const int UNIT_BLOCKED_DURATION = 30;
+
+// Building
+static const uint32_t BUILDING_FADE_DURATION = 300;
+
+// Bunker
+static const uint32_t BUNKER_FIRE_OFFSET = 10;
+static const ivec2 BUNKER_PARTICLE_OFFSETS[4] = { ivec2(3, 23), ivec2(11, 26), ivec2(20, 25), ivec2(28, 23) };
+
+// War wagon
+static const ivec2 WAR_WAGON_DOWN_PARTICLE_OFFSETS[4] = { ivec2(14, 6), ivec2(17, 8), ivec2(21, 6), ivec2(24, 8) };
+static const ivec2 WAR_WAGON_UP_PARTICLE_OFFSETS[4] = { ivec2(16, 20), ivec2(18, 22), ivec2(21, 20), ivec2(23, 22) };
+static const ivec2 WAR_WAGON_RIGHT_PARTICLE_OFFSETS[4] = { ivec2(7, 18), ivec2(11, 19), ivec2(12, 20), ivec2(16, 18) };
+
+// Jockey
+static const uint32_t JOCKEY_MOVING_SHOT_FRAME_COUNT = 3U;
+static const uint32_t JOCKEY_MOVING_SHOT_FRAME_DURATION = 8U;
+static const uint32_t JOCKEY_MOVING_SHOT_TIMER_DURATION = JOCKEY_MOVING_SHOT_FRAME_DURATION * JOCKEY_MOVING_SHOT_FRAME_COUNT;
+
+// Gold
+static const uint32_t MATCH_LOW_GOLD_THRESHOLD = 1000;
+
+// Fire
+static const uint32_t FIRE_DAMAGE_COOLDOWN = 8;
+
+// Fog
+static const uint32_t FOG_REVEAL_DURATION = 60;
+
+EntityId entity_create(MatchState& state, EntityType type, ivec2 cell, uint8_t player_id) {
+    const EntityData& entity_data = entity_get_data(type);
+
+    if (state.entities.is_full()) {
+        return ID_NULL;
+    }
+
+    Entity entity;
+    entity.type = type;
+    entity.mode = entity_is_unit(type) ? MODE_UNIT_IDLE : MODE_BUILDING_IN_PROGRESS;
+    entity.player_id = player_id;
+    memset(entity.padding, 0, sizeof(entity.padding));
+    entity.flags = 0;
+
+    entity.cell = cell;
+    entity.position = entity_is_unit(type)
+                        ? entity_get_target_position(entity)
+                        : fvec2(entity.cell * TILE_SIZE);
+    entity.direction = DIRECTION_SOUTH;
+
+    entity.health = entity_is_unit(type) || entity.type == ENTITY_LANDMINE
+                        ? entity_data.max_health
+                        : (entity_data.max_health / 10);
+    entity.energy = entity_is_unit(type) ? entity_data.unit_data.max_energy / 4 : 0;
+
+    entity.target = target_none();
+    entity.target_queue_index = ENTITY_TARGET_QUEUE_INDEX_NONE;
+    entity.moving_shot_target_id = ID_NULL;
+    entity.moving_shot_attack_windup_timer = 0;
+
+    entity.path_index = ENTITY_PATH_INDEX_NONE;
+    entity.pathfind_attempts = 0;
+    entity.timer = entity_is_unit(type) || entity.type == ENTITY_LANDMINE
+                        ? 0
+                        : (uint32_t)(entity_data.max_health - entity.health);
+    entity.attack_move_cell = ivec2(-1, -1);
+    entity.rally_point = ivec2(-1, -1);
+
+    entity.animation = animation_create(ANIMATION_UNIT_IDLE);
+
+    entity.garrison_id = ID_NULL;
+    entity.cooldown_timer = 0;
+    entity.gold_held = 0;
+    entity.goldmine_id = ID_NULL;
+
+    entity.taking_damage_counter = 0;
+    entity.taking_damage_timer = 0;
+    entity.health_regen_timer = 0;
+    entity.fire_damage_timer = 0;
+    entity.energy_regen_timer = 0;
+
+    if (entity.type == ENTITY_LANDMINE) {
+        entity.timer = MINE_ARM_DURATION;
+        entity.mode = MODE_MINE_ARM;
+    } else if (entity.type == ENTITY_SOLDIER) {
+        entity_set_flag(entity, ENTITY_FLAG_CHARGED, true);
+    }
+
+    EntityId id = state.entities.push_back(entity);
+    map_set_cell_rect(state.map, entity_data.cell_layer, entity.cell, entity_data.cell_size, (Cell) {
+        .type = entity_is_unit(type) ? CELL_UNIT : CELL_BUILDING,
+        .id = id
+    });
+    match_fog_update(state, state.players[entity.player_id].team, entity.cell, entity_data.cell_size, entity_data.sight, entity_has_detection(state, entity), entity_data.cell_layer, true);
+
+    if (entity_is_building(type)) {
+        map_calculate_unreachable_cells(state.map);
+    }
+
+    // Send event
+    state.events.push({
+        .type = MATCH_EVENT_ENTITY_CREATED,
+        .entity_created = {
+            .entity_id = id
+        }
+    });
+
+    return id;
+}
+
+EntityId entity_create_finished_building(MatchState& state, EntityType type, ivec2 cell, uint8_t player_id) {
+    EntityId building_id = entity_create(state, type, cell, player_id);
+    Entity& building = state.entities.get_by_id(building_id);
+
+    building.health = entity_get_data(building.type).max_health;
+    building.mode = MODE_BUILDING_FINISHED;
+
+    if (building.type == ENTITY_LANDMINE) {
+        building.timer = 0;
+        entity_set_flag(building, ENTITY_FLAG_INVISIBLE, true);
+    }
+
+    return building_id;
+}
+
+EntityId entity_create_misc(MatchState& state, EntityType type, ivec2 cell, uint32_t gold_left) {
+    if (state.entities.is_full()) {
+        return ID_NULL;
+    }
+
+    Entity entity;
+    entity.type = type;
+
+    // Mode
+    if (type == ENTITY_GOLDMINE && gold_left == 0) {
+        entity.mode = MODE_GOLDMINE_COLLAPSED;
+    } else if (type == ENTITY_SWITCH) {
+        entity.mode = MODE_SWITCH_UP;
+    } else {
+        entity.mode = MODE_GOLDMINE;
+    }
+
+    entity.player_id = PLAYER_NONE;
+    memset(entity.padding, 0, sizeof(entity.padding));
+    entity.flags = 0;
+
+    entity.cell = cell;
+    entity.position = fvec2(entity.cell * TILE_SIZE);
+    entity.direction = DIRECTION_SOUTH;
+
+    entity.health = 0;
+    entity.energy = 0;
+    entity.target = target_none();
+    entity.target_queue_index = ENTITY_TARGET_QUEUE_INDEX_NONE;
+    entity.moving_shot_target_id = ID_NULL;
+    entity.moving_shot_attack_windup_timer = 0;
+    entity.path_index = ENTITY_PATH_INDEX_NONE;
+    entity.attack_move_cell = ivec2(-1, -1);
+    entity.rally_point = ivec2(-1, -1);
+    entity.pathfind_attempts = 0;
+    entity.timer = 0;
+    entity.animation = animation_create(ANIMATION_UNIT_IDLE);
+    entity.garrison_id = ID_NULL;
+    entity.cooldown_timer = 0;
+    entity.gold_held = gold_left;
+    entity.goldmine_id = ID_NULL;
+
+    entity.taking_damage_counter = 0;
+    entity.taking_damage_timer = 0;
+    entity.health_regen_timer = 0;
+    entity.fire_damage_timer = 0;
+    entity.energy_regen_timer = 0;
+
+    EntityId id = state.entities.push_back(entity);
+    map_set_cell_rect(state.map, CELL_LAYER_GROUND, entity.cell, entity_get_data(entity.type).cell_size, (Cell) {
+        .type = type == ENTITY_GOLDMINE
+            ? CELL_GOLDMINE
+            : CELL_BUILDING,
+        .id = id
+    });
+
+    return id;
+}
+
+void entity_update(MatchState& state, uint32_t entity_index) {
+    EntityId entity_id = state.entities.get_id_of(entity_index);
+    Entity& entity = state.entities[entity_index];
+    const EntityData& entity_data = entity_get_data(entity.type);
+
+    // Check if entity should die
+    if (entity_should_die(entity)) {
+        if (entity_is_unit(entity.type)) {
+            entity.goldmine_id = ID_NULL;
+            entity.mode = entity.type == ENTITY_BALLOON ? MODE_UNIT_BALLOON_DEATH_START : MODE_UNIT_DEATH;
+            entity.animation = animation_create(entity_get_expected_animation(entity));
+            entity_set_flag(entity, ENTITY_FLAG_INVISIBLE, false);
+
+            // Clear the unit's target
+            // This is so that we refund any buildings
+            // It also frees the allocated target queue
+            if (entity.target.type == TARGET_BUILD) {
+                entity_refund_target_build(state, entity, entity.target);
+            }
+            entity_target_queue_clear(state, entity);
+            entity.moving_shot_target_id = ID_NULL;
+            entity.moving_shot_attack_windup_timer = 0;
+
+            // Release entity path
+            entity_path_clear(state, entity);
+
+            if (entity_has_detection(state, entity) && entity.garrison_id == ID_NULL) {
+                // Remove this units detection
+                match_fog_update(state, state.players[entity.player_id].team, entity.cell, entity_data.cell_size, entity_data.sight, true, entity_data.cell_layer, false);
+                // Then re-increment fog with non-detection so that we can still see death fade
+                match_fog_update(state, state.players[entity.player_id].team, entity.cell, entity_data.cell_size, entity_data.sight, false, entity_data.cell_layer, true);
+            }
+        } else {
+            entity.mode = MODE_BUILDING_DESTROYED;
+            entity.timer = BUILDING_FADE_DURATION;
+
+            // Make sure that any building upgrades are marked as re-available
+            for (uint32_t building_queue_index = 0; building_queue_index < entity.queue.size(); building_queue_index++) {
+                const BuildingQueueItem& item = entity.queue[building_queue_index];
+                if (item.type == BUILDING_QUEUE_ITEM_UPGRADE) {
+                    state.players[entity.player_id].upgrades_in_progress &= ~item.upgrade;
+                }
+            }
+            entity.queue.clear();
+
+            if (entity.type == ENTITY_LANDMINE) {
+                map_set_cell_rect(state.map, CELL_LAYER_UNDERGROUND, entity.cell, entity_data.cell_size, (Cell) {
+                    .type = CELL_EMPTY, .id = ID_NULL
+                });
+            } else {
+                // Set building cells to empty
+                // but don't override the miner cell
+                for (int y = entity.cell.y; y < entity.cell.y + entity_data.cell_size; y++) {
+                    for (int x = entity.cell.x; x < entity.cell.x + entity_data.cell_size; x++) {
+                        ivec2 cell = ivec2(x, y);
+                        if (map_get_cell(state.map, CELL_LAYER_GROUND, cell).id == entity_id) {
+                            map_set_cell(state.map, CELL_LAYER_GROUND, cell, (Cell) {
+                                .type = CELL_EMPTY,
+                                .id = ID_NULL
+                            });
+                        }
+                    }
+                }
+                map_calculate_unreachable_cells(state.map);
+            }
+        }
+
+        if (!entity_is_unit(entity.type)) {
+            // If it's a building, release garrisoned units
+            // If it's a unit, it will release them once its death animation is over
+            entity_release_garrisoned_units_on_death(state, entity);
+
+            // Also if it's a building, turn off the burning flag
+            entity_set_flag(entity, ENTITY_FLAG_ON_FIRE, false);
+        }
+
+        // Check if player has lost
+        if (entity.type != ENTITY_LANDMINE &&
+                ((entity_is_building(entity.type) &&
+                    !match_player_has_buildings(state, entity.player_id)) ||
+                (!entity_is_building(entity.type) &&
+                    !match_player_has_entities(state, entity.player_id)))) {
+            state.players[entity.player_id].mode = PLAYER_MODE_DEFEATED;
+        }
+    }
+    // End if entity should die
+
+    // Entity state machine
+    fixed movement_left = entity_get_speed(state, entity);
+    bool update_finished = false;
+    while (!update_finished) {
+        switch (entity.mode) {
+            case MODE_UNIT_IDLE: {
+                // Do nothing if player is inactive
+                if (state.players[entity.player_id].mode != PLAYER_MODE_ACTIVE) {
+                    update_finished = true;
+                    break;
+                }
+
+                // Do nothing if unit is garrisoned
+                if (entity.garrison_id != ID_NULL) {
+                    const Entity& carrier = state.entities.get_by_id(entity.garrison_id);
+                    if (!(carrier.type == ENTITY_BUNKER ||
+                            (carrier.type == ENTITY_WAGON && match_player_has_upgrade(state, entity.player_id, UPGRADE_WAR_WAGON)))) {
+                        update_finished = true;
+                        break;
+                    }
+                }
+
+                // If unit is idle, check target queue
+                if (entity.target.type == TARGET_NONE && entity.target_queue_index != ENTITY_TARGET_QUEUE_INDEX_NONE) {
+                    TargetQueue* target_queue = state.entity_target_queues.get(entity.target_queue_index);
+
+                    entity_set_target(state, entity, (*target_queue)[0]);
+                    target_queue->pop();
+
+                    if (target_queue->empty()) {
+                        state.entity_target_queues.release(entity.target_queue_index);
+                        entity.target_queue_index = ENTITY_TARGET_QUEUE_INDEX_NONE;
+                    }
+                }
+
+                // If unit is idle, try to find a nearby target
+                if ((entity.target.type == TARGET_NONE || entity.target.type == TARGET_PATROL) &&
+                        entity.type != ENTITY_MINER &&
+                        !(entity.type == ENTITY_DETECTIVE && entity_check_flag(entity, ENTITY_FLAG_INVISIBLE)) &&
+                        entity_data.unit_data.damage != 0) {
+                    Target nearest_enemy_target = entity_target_nearest_enemy(state, entity);
+                    if (nearest_enemy_target.type != TARGET_NONE) {
+                        entity.target = nearest_enemy_target;
+                    }
+                }
+
+                // If unit is attacking, check if there's a higher priority target nearby
+                if (entity.target.type == TARGET_ATTACK_ENTITY && !entity_check_flag(entity, ENTITY_FLAG_ATTACK_SPECIFIC_ENTITY)) {
+                    Target attack_target = entity_target_nearest_enemy(state, entity);
+                    if (attack_target.type == TARGET_ATTACK_ENTITY && attack_target.id != entity.target.id) {
+                        const Entity& attack_target_entity = state.entities.get_by_id(attack_target.id);
+
+                        uint32_t entity_target_index = state.entities.get_index_of(entity.target.id);
+
+                            // If entity target is invalid, then go with the new target
+                        if ( entity_target_index == INDEX_INVALID ||
+                                // If new target is higher priority than old target, then go with the new target
+                                entity_get_target_attack_priority(entity, attack_target_entity) >
+                                entity_get_target_attack_priority(entity, state.entities[entity_target_index]) ||
+                                // For sappers, if the new target is closer, then go with the new target
+                                (entity.type == ENTITY_SAPPER &&
+                                    ivec2::manhattan_distance(entity.cell, state.entities[entity_target_index].cell) <
+                                    ivec2::manhattan_distance(entity.cell, attack_target_entity.cell))) {
+                            entity.target = attack_target;
+                        }
+                    }
+                }
+
+                // If entity has a target attack cell, then move to it
+                if (entity.target.type == TARGET_NONE && entity.attack_move_cell.x != -1) {
+                    entity.target = target_attack_cell(entity.attack_move_cell);
+                }
+
+                // If unit is still idle, do nothing
+                if (entity.target.type == TARGET_NONE) {
+                    // If soldier is idle, charge weapon
+                    if (entity.type == ENTITY_SOLDIER && !entity_check_flag(entity, ENTITY_FLAG_CHARGED)) {
+                        entity.mode = MODE_UNIT_SOLDIER_CHARGE;
+                    }
+                    update_finished = true;
+                    break;
+                }
+
+                // Set patrol target cell
+                if (entity.target.type == TARGET_PATROL) {
+                    int distance_to_a = ivec2::manhattan_distance(entity.cell, entity.target.patrol.cell_a);
+                    int distance_to_b = ivec2::manhattan_distance(entity.cell, entity.target.patrol.cell_b);
+                    entity.target.cell = distance_to_a < distance_to_b
+                        ? entity.target.patrol.cell_b
+                        : entity.target.patrol.cell_a;
+                }
+
+                if (entity_is_target_invalid(state, entity)) {
+                    entity_set_flag(entity, ENTITY_FLAG_ATTACK_SPECIFIC_ENTITY, false);
+                    entity.target = target_none();
+                    update_finished = true;
+                    break;
+                }
+
+                // If mining, cache the current target's gold mine so that this unit returns to it later
+                if (entity.type == ENTITY_MINER && entity.target.type == TARGET_ENTITY) {
+                    const Entity& target = state.entities.get_by_id(entity.target.id);
+                    if (target.type == ENTITY_GOLDMINE && target.gold_held != 0) {
+                        entity.goldmine_id = entity.target.id;
+                    }
+                }
+
+                const bool jockey_is_moving_shooting =
+                    entity.type == ENTITY_JOCKEY &&
+                    entity.target.type == TARGET_ATTACK_ENTITY &&
+                    entity_is_moving_shot_target_moving_away_from_entity(state, entity) &&
+                    !entity_check_flag(entity, ENTITY_FLAG_HOLD_POSITION);
+                if (entity_has_reached_target(state, entity) && !jockey_is_moving_shooting) {
+                    entity.mode = MODE_UNIT_MOVE_FINISHED;
+                    break;
+                }
+
+                // Don't move if hold position or if garrisoned
+                // We have to check garrisoned a second time here because previously we had allowed bunkered units to shoot
+                if (entity_check_flag(entity, ENTITY_FLAG_HOLD_POSITION) || entity.garrison_id != ID_NULL) {
+                    // Throw away targets if garrisoned. This prevents bunkered units from fixated on a target they can no longer reach
+                    entity.target = target_none();
+                    update_finished = true;
+                    break;
+                }
+
+                // Pathfind
+                {
+                    MapPath mine_exit_path;
+                    entity_get_mining_path_to_avoid(state, entity, &mine_exit_path);
+
+                    uint32_t pathfind_options = 0;
+                    if (entity_is_mining(state, entity)) {
+                        pathfind_options |= MAP_OPTION_IGNORE_MINERS;
+                        pathfind_options |= MAP_OPTION_NO_REGION_PATH;
+                    }
+                    if (entity.target.type == TARGET_CELL && entity.pathfind_attempts == 0) {
+                        pathfind_options |= MAP_OPTION_ALLOW_PATH_SQUIRRELING;
+                    }
+                    entity_pathfind(state, entity, entity_get_target_cell(state, entity), pathfind_options, &mine_exit_path);
+                }
+
+                // Check path
+                if (entity_has_path(entity)) {
+                    entity.pathfind_attempts = 0;
+                    entity.mode = MODE_UNIT_MOVE;
+                } else {
+                    entity.pathfind_attempts++;
+                    if (entity.pathfind_attempts >= 3) {
+                        if (entity.target.type == TARGET_BUILD) {
+                            entity_refund_target_build(state, entity, entity.target);
+                        }
+                        entity.attack_move_cell = ivec2(-1, -1);
+                        entity.target = target_none();
+                        entity.pathfind_attempts = 0;
+                        update_finished = true;
+                        break;
+                    } else {
+                        entity.timer = UNIT_BLOCKED_DURATION;
+                        entity.mode = MODE_UNIT_BLOCKED;
+                        update_finished = true;
+                        break;
+                    }
+                }
+                break;
+            }
+            case MODE_UNIT_BLOCKED: {
+                entity.timer--;
+                if (entity.timer == 0) {
+                    entity.mode = MODE_UNIT_IDLE;
+                    break;
+                }
+
+                update_finished = true;
+                break;
+            }
+            case MODE_UNIT_MOVE: {
+                bool path_is_blocked = false;
+
+                while (movement_left.raw_value > 0) {
+                    // If the unit is not moving between tiles, then pop the next cell off the path
+                    if (entity.position == entity_get_target_position(entity) && entity_has_path(entity)) {
+                        MapPath* entity_path = state.entity_paths.get(entity.path_index);
+                        entity.direction = enum_from_ivec2_direction(entity_path->back() - entity.cell);
+
+                        // Miner - detect traffic jam and try to walk around entity
+                        if (entity_is_mining(state, entity) &&
+                                map_is_cell_rect_occupied(state.map, entity_data.cell_layer, entity_path->back(), entity_data.cell_size, entity.cell, 0) &&
+                                entity_is_blocker_walking_towards_entity(state, entity)) {
+
+                            uint32_t target_index = state.entities.get_index_of(entity.target.id);
+                            if (target_index != INDEX_INVALID) {
+                                const Entity& target = state.entities[target_index];
+                                int target_size = entity_get_data(target.type).cell_size;
+
+                                ivec2 target_cell = map_get_nearest_cell_around_rect(state.map, CELL_LAYER_GROUND, entity.cell, entity_data.cell_size, target.cell, target_size, 0);
+
+                                // Pathfind without ignoring miners to see if we can walk around
+                                MapPath mine_exit_path;
+                                entity_get_mining_path_to_avoid(state, entity, &mine_exit_path);
+                                entity_pathfind(state, entity, target_cell, MAP_OPTION_NO_REGION_PATH, &mine_exit_path);
+
+                                // If no path was generated, then just consider ourselves blocked
+                                if (!entity_has_path(entity)) {
+                                    path_is_blocked = true;
+                                    // breaks out of while movement left
+                                    break;
+                                }
+
+                                // Otherwise, orient towards the new path and try to keep walking
+                                // The code below this block should double-check that path.back() is not blocked
+                                // Note that we reset the entity_path pointer since the path was realloced
+                                entity_path = state.entity_paths.get(entity.path_index);
+                                entity.direction = enum_from_ivec2_direction(entity_path->back() - entity.cell);
+                            }
+                        }
+
+                        if (map_is_cell_rect_occupied(state.map, entity_data.cell_layer, entity_path->back(), entity_data.cell_size, entity.cell, 0)) {
+                            path_is_blocked = true;
+                            // breaks out of while movement left
+                            break;
+                        }
+
+                        if (map_is_cell_rect_equal_to(state.map, entity_data.cell_layer, entity.cell, entity_data.cell_size, entity_id)) {
+                            map_set_cell_rect(state.map, entity_data.cell_layer, entity.cell, entity_data.cell_size, (Cell) {
+                                .type = CELL_EMPTY,
+                                .id = ID_NULL
+                            });
+                        }
+                        match_fog_update(state, state.players[entity.player_id].team, entity.cell, entity_data.cell_size, entity_data.sight, entity_has_detection(state, entity), entity_data.cell_layer, false);
+                        entity.cell = entity_path->back();
+                        map_set_cell_rect(state.map, entity_data.cell_layer, entity.cell, entity_data.cell_size, (Cell) {
+                            .type = entity_is_mining(state, entity) ? CELL_MINER : CELL_UNIT,
+                            .id = entity_id
+                        });
+                        match_fog_update(state, state.players[entity.player_id].team, entity.cell, entity_data.cell_size, entity_data.sight, entity_has_detection(state, entity), entity_data.cell_layer, true);
+                        entity_path->pop_back();
+                        if (entity_path->empty()) {
+                            state.entity_paths.release(entity.path_index);
+                            entity.path_index = ENTITY_PATH_INDEX_NONE;
+                            entity_path = NULL;
+                        }
+                    }
+
+                    // Step unit along movement
+                    if (entity.position.distance_to(entity_get_target_position(entity)) > movement_left) {
+                        entity.position += DIRECTION_FVEC2[entity.direction] * movement_left;
+                        movement_left = fixed::from_raw(0);
+                    } else {
+                        movement_left -= entity.position.distance_to(entity_get_target_position(entity));
+                        entity.position = entity_get_target_position(entity);
+                        // On step finished
+                        // Check to see if we triggered a mine
+                        if (entity_data.cell_layer == CELL_LAYER_GROUND) {
+                            for (uint32_t mine_index = 0; mine_index < state.entities.size(); mine_index++) {
+                                Entity& mine = state.entities[mine_index];
+                                if (mine.type != ENTITY_LANDMINE || mine.health == 0 || mine.mode != MODE_BUILDING_FINISHED ||
+                                        state.players[mine.player_id].team == state.players[entity.player_id].team ||
+                                        state.players[mine.player_id].mode != PLAYER_MODE_ACTIVE ||
+                                        std::abs(entity.cell.x - mine.cell.x) > 1 || std::abs(entity.cell.y - mine.cell.y) > 1) {
+                                    continue;
+                                }
+                                mine.animation = animation_create(ANIMATION_MINE_PRIME);
+                                mine.timer = MINE_PRIME_DURATION;
+                                mine.mode = MODE_MINE_PRIME;
+                                entity_set_flag(mine, ENTITY_FLAG_INVISIBLE, false);
+                            }
+                        }
+                        // If player is inactive, set to idle
+                        if (state.players[entity.player_id].mode != PLAYER_MODE_ACTIVE) {
+                            entity.target = target_none();
+                            entity_path_clear(state, entity);
+                            entity.mode = MODE_UNIT_IDLE;
+                            break;
+                        }
+                        if (entity.target.type == TARGET_ATTACK_CELL || entity.target.type == TARGET_PATROL) {
+                            Target attack_target = entity_target_nearest_enemy(state, entity);
+                            if (attack_target.type != TARGET_NONE) {
+                                entity.target = attack_target;
+                                entity_path_clear(state, entity);
+                                entity.mode = entity_has_reached_target(state, entity) ? MODE_UNIT_MOVE_FINISHED : MODE_UNIT_IDLE;
+                                // breaks out of while movement left > 0
+                                break;
+                            }
+                        }
+                        if (entity_is_target_invalid(state, entity)) {
+                            entity_set_flag(entity, ENTITY_FLAG_ATTACK_SPECIFIC_ENTITY, false);
+                            entity.mode = MODE_UNIT_IDLE;
+                            entity.target = target_none();
+                            entity_path_clear(state, entity);
+                            break;
+                        }
+
+                        // Reached target
+                        if (entity_has_reached_target(state, entity)) {
+                            // If we have reached target we will break out of movement left
+                            // in most execution paths. The exception is if the jockey's target
+                            // is moving away from it, but the jockey's path is empty, in that
+                            // case we want to flow down some of the checks below this if statement
+
+                            if (entity.type == ENTITY_JOCKEY && entity.target.type == TARGET_ATTACK_ENTITY) {
+                                if (entity.moving_shot_target_id == ID_NULL && entity.cooldown_timer == 0) {
+                                    entity.moving_shot_target_id = entity.target.id;
+                                    entity.moving_shot_attack_windup_timer = (uint16_t)JOCKEY_MOVING_SHOT_TIMER_DURATION;
+                                }
+
+                                // If the target is not moving away, stop movement
+                                if (!entity_is_moving_shot_target_moving_away_from_entity(state, entity)) {
+                                    entity.mode = MODE_UNIT_IDLE;
+                                    entity_path_clear(state, entity);
+
+                                    // break out of while movement left
+                                    break;
+                                // If the target is moving away, remain in movement
+                                // If we don't have a path, go into idle so that we can
+                                // re-pathfind
+                                } else if (!entity_has_path(entity)) {
+                                    entity.mode = MODE_UNIT_IDLE;
+
+                                    // break out of while movement left
+                                    break;
+                                }
+                            } else {
+                                entity.mode = MODE_UNIT_MOVE_FINISHED;
+                                entity_path_clear(state, entity);
+                                // break out of while movement left
+                                break;
+                            }
+                        }
+
+                        // If our path is no longer close to the target entity, then clear path and go into idle to trigger a repath
+                        if (entity_is_path_end_too_far_from_target(state, entity)) {
+                            entity.mode = MODE_UNIT_IDLE;
+                            entity_path_clear(state, entity);
+                            // break out of while movement left
+                            break;
+                        }
+                        if (!entity_has_path(entity)) {
+                            entity.mode = MODE_UNIT_IDLE;
+                            // break out of while movement left
+                            break;
+                        }
+                    }
+                } // End while movement left
+
+                if (path_is_blocked) {
+                    entity.mode = MODE_UNIT_BLOCKED;
+                    entity.timer = entity_is_mining(state, entity) ? 10 : UNIT_BLOCKED_DURATION;
+                }
+
+                update_finished = entity.mode != MODE_UNIT_MOVE_FINISHED;
+                break;
+            }
+            case MODE_UNIT_MOVE_FINISHED: {
+                switch (entity.target.type) {
+                    case TARGET_NONE:
+                    case TARGET_ATTACK_CELL:
+                    case TARGET_CELL:
+                    case TARGET_PATROL: {
+                        entity.target = target_none();
+                        entity.attack_move_cell = ivec2(-1, -1);
+                        entity.mode = MODE_UNIT_IDLE;
+                        break;
+                    }
+                    case TARGET_UNLOAD: {
+                        if (!entity_has_reached_target(state, entity)) {
+                            entity.mode = MODE_UNIT_IDLE;
+                            break;
+                        }
+
+                        entity_unload_unit(state, entity, ENTITY_UNLOAD_ALL);
+                        entity.mode = MODE_UNIT_IDLE;
+                        entity.target = target_none();
+                        break;
+                    }
+                    case TARGET_MOLOTOV: {
+                        if (!entity_has_reached_target(state, entity)) {
+                            entity.mode = MODE_UNIT_IDLE;
+                            break;
+                        }
+                        if (entity.energy < MOLOTOV_ENERGY_COST) {
+                            entity.mode = MODE_UNIT_IDLE;
+                            entity.target = target_none();
+                            break;
+                        }
+
+                        entity.energy -= MOLOTOV_ENERGY_COST;
+                        entity.direction = enum_direction_to_rect(entity.cell, entity.target.cell, 1);
+                        entity.mode = MODE_UNIT_PYRO_THROW;
+                        entity.animation = animation_create(ANIMATION_UNIT_ATTACK);
+                        break;
+                    }
+                    case TARGET_BUILD: {
+                        const EntityData& building_data = entity_get_data(entity.target.build.building_type);
+                        bool can_build = true;
+
+                        for (int y = entity.target.build.building_cell.y; y < entity.target.build.building_cell.y + building_data.cell_size; y++) {
+                            for (int x = entity.target.build.building_cell.x; x < entity.target.build.building_cell.x + building_data.cell_size; x++) {
+                                ivec2 cell = ivec2(x, y);
+                                if ((cell != entity.cell && map_get_cell(state.map, CELL_LAYER_GROUND, cell).type != CELL_EMPTY) ||
+                                        map_get_cell(state.map, CELL_LAYER_UNDERGROUND, cell).type != CELL_EMPTY) {
+                                    can_build = false;
+                                }
+                            }
+                        }
+                        if (!can_build) {
+                            entity_refund_target_build(state, entity, entity.target);
+                            entity.target = target_none();
+                            entity.mode = MODE_UNIT_IDLE;
+                            break;
+                        }
+
+                        if (entity.target.build.building_type == ENTITY_LANDMINE) {
+                            entity_create(state, entity.target.build.building_type, entity.target.build.building_cell, entity.player_id);
+
+                            entity.direction = enum_direction_to_rect(entity.cell, entity.target.build.building_cell, building_data.cell_size);
+                            entity.target = target_none();
+                            entity.mode = MODE_UNIT_PYRO_THROW;
+                            entity.animation = animation_create(ANIMATION_UNIT_ATTACK);
+                        } else {
+                            map_set_cell_rect(state.map, CELL_LAYER_GROUND, entity.cell, entity_data.cell_size, (Cell) {
+                                .type = CELL_EMPTY, .id = ID_NULL
+                            });
+                            match_fog_update(state, state.players[entity.player_id].team, entity.cell, entity_data.cell_size, entity_data.sight, entity_has_detection(state, entity), entity_data.cell_layer, false);
+                            EntityId building_id = entity_create(state, entity.target.build.building_type, entity.target.build.building_cell, entity.player_id);
+                            if (building_id != ID_NULL) {
+                                entity.target.id = building_id;
+                                entity.mode = MODE_UNIT_BUILD;
+                                entity.timer = UNIT_BUILD_TICK_DURATION;
+                            } else {
+                                entity.target = target_none();
+                            }
+                        }
+
+                        break;
+                    }
+                    case TARGET_BUILD_ASSIST: {
+                        if (entity_is_target_invalid(state, entity) || state.players[entity.player_id].mode != PLAYER_MODE_ACTIVE) {
+                            entity.target = target_none();
+                            entity.mode = MODE_UNIT_IDLE;
+                            break;
+                        }
+
+                        Entity& builder = state.entities.get_by_id(entity.target.id);
+                        if (builder.mode == MODE_UNIT_BUILD) {
+                            entity.target = target_repair(builder.target.id);
+                            entity.mode = MODE_UNIT_BUILD_ASSIST;
+                            entity.timer = UNIT_BUILD_TICK_DURATION;
+                            entity.direction = enum_direction_to_rect(entity.cell, builder.target.build.building_cell, entity_get_data(builder.target.build.building_type).cell_size);
+                        }
+                        break;
+                    }
+                    case TARGET_REPAIR:
+                    case TARGET_ENTITY:
+                    case TARGET_ATTACK_ENTITY: {
+                        if (entity_is_target_invalid(state, entity) || state.players[entity.player_id].mode != PLAYER_MODE_ACTIVE) {
+                            entity_set_flag(entity, ENTITY_FLAG_ATTACK_SPECIFIC_ENTITY, false);
+                            entity.target = target_none();
+                            entity.mode = MODE_UNIT_IDLE;
+                            break;
+                        }
+
+                        if (!entity_has_reached_target(state, entity)) {
+                            entity.mode = MODE_UNIT_IDLE;
+                            break;
+                        }
+
+                        Entity& target = state.entities.get_by_id(entity.target.id);
+                        const EntityData& target_data = entity_get_data(target.type);
+
+                        // Sapper explosion
+                        if (entity.target.type == TARGET_ATTACK_ENTITY && entity.type == ENTITY_SAPPER && target_data.cell_layer != CELL_LAYER_SKY) {
+                            entity_explode(state, entity_id);
+                            update_finished = true;
+                            break;
+                        }
+
+                        // Begin attack
+                        if (entity.target.type == TARGET_ATTACK_ENTITY && entity_data.unit_data.damage != 0) {
+                            if (entity.cooldown_timer != 0) {
+                                entity.mode = MODE_UNIT_IDLE;
+                                update_finished = true;
+                                break;
+                            }
+
+                            // Don't attack units we can't see
+                            if (!entity_is_visible_to_player(state, target, entity.player_id)) {
+                                entity.mode = MODE_UNIT_IDLE;
+                                update_finished = true;
+                                break;
+                            }
+
+                            // Don't attack sky units unless this unit is ranged
+                            if (target_data.cell_layer == CELL_LAYER_SKY && (entity_get_range_squared(state, entity) == 1 || entity.type == ENTITY_CANNON)) {
+                                entity.mode = MODE_UNIT_IDLE;
+                                update_finished = true;
+                                break;
+                            }
+
+                            // Check min range
+                            bool attack_with_bayonets = false;
+                            if (entity_is_target_within_min_range(entity, target)) {
+                                if (entity.type == ENTITY_SOLDIER && match_player_has_upgrade(state, entity.player_id, UPGRADE_BAYONETS)) {
+                                    attack_with_bayonets = true;
+                                } else {
+                                    entity.direction = enum_direction_to_rect(entity.cell, target.cell, target_data.cell_size);
+                                    entity.mode = MODE_UNIT_IDLE;
+                                    update_finished = true;
+                                    break;
+                                }
+                            }
+
+                            // Begin soldier charge
+                            if (entity.type == ENTITY_SOLDIER && !attack_with_bayonets && !entity_check_flag(entity, ENTITY_FLAG_CHARGED)) {
+                                entity.mode = MODE_UNIT_SOLDIER_CHARGE;
+                                update_finished = true;
+                                break;
+                            }
+
+                            // Attack inside bunker
+                            if (entity.garrison_id != ID_NULL) {
+                                Entity& carrier = state.entities.get_by_id(entity.garrison_id);
+                                // Don't attack during bunker cooldown or if this is a melee unit
+                                if (carrier.cooldown_timer != 0 || entity_get_range_squared(state, entity) == 1) {
+                                    update_finished = true;
+                                    break;
+                                }
+
+                                carrier.cooldown_timer = BUNKER_FIRE_OFFSET;
+                            }
+
+                            // Begin attack windup
+                            entity.direction = enum_direction_to_rect(entity.cell, target.cell, target_data.cell_size);
+                            if (entity.type == ENTITY_SOLDIER && !attack_with_bayonets) {
+                                entity.mode = MODE_UNIT_SOLDIER_RANGED_ATTACK_WINDUP;
+                            } else {
+                                entity.mode = MODE_UNIT_ATTACK_WINDUP;
+                            }
+                            update_finished = true;
+                            break;
+                        }
+
+                        // Return gold
+                        if (entity.type == ENTITY_MINER && target.type == ENTITY_HALL &&
+                                target.mode == MODE_BUILDING_FINISHED && entity.player_id == target.player_id &&
+                                entity.gold_held != 0 && entity.target.type != TARGET_REPAIR) {
+                            state.players[entity.player_id].gold += entity.gold_held;
+                            state.players[entity.player_id].gold_mined_total += entity.gold_held;
+                            entity.gold_held = 0;
+
+                            // First clear entity's target
+                            entity.target = target_none();
+                            // Then try to set its target based on the gold mine it just visited
+                            if (entity.goldmine_id != ID_NULL) {
+                                // It's safe to do this because gold mines never get removed from the array
+                                const Entity& gold_mine = state.entities.get_by_id(entity.goldmine_id);
+                                if (gold_mine.gold_held != 0) {
+                                    entity.target = target_entity(entity.goldmine_id);
+                                } else {
+                                    entity.goldmine_id = ID_NULL;
+                                }
+                            // If it doesn't have a last visited gold mine, then find a mine to visit
+                            } else {
+                                entity.target = entity_target_nearest_goldmine(state, entity);
+                            }
+
+                            entity.mode = MODE_UNIT_IDLE;
+                            update_finished = true;
+                            break;
+                        }
+                        // End return gold
+
+                        // Enter mine
+                        if (entity.type == ENTITY_MINER && target.type == ENTITY_GOLDMINE && target.gold_held > 0) {
+                            if (entity.gold_held != 0) {
+                                entity.target = entity_target_nearest_hall(state, entity);
+                                entity.mode = MODE_UNIT_IDLE;
+                                update_finished = true;
+                                break;
+                            }
+
+                            if (target.garrisoned_units.size() + entity_data.garrison_size <= target_data.garrison_capacity) {
+                                target.garrisoned_units.push_back(entity_id);
+                                entity.garrison_id = entity.target.id;
+                                entity.mode = MODE_UNIT_IN_MINE;
+                                entity.timer = UNIT_IN_MINE_DURATION;
+                                entity.target = target_none();
+                                entity.gold_held = std::min(UNIT_MAX_GOLD_HELD, target.gold_held);
+                                target.gold_held -= entity.gold_held;
+                                map_set_cell_rect(state.map, CELL_LAYER_GROUND, entity.cell, entity_data.cell_size, (Cell) {
+                                    .type = CELL_EMPTY, .id = ID_NULL
+                                });
+
+                                if (target.gold_held < MATCH_LOW_GOLD_THRESHOLD && target.gold_held + entity.gold_held >= MATCH_LOW_GOLD_THRESHOLD) {
+                                }
+                            }
+
+                            update_finished = true;
+                            break;
+                        }
+
+                        // Collect gold from crate
+                        if (target.type == ENTITY_CRATE && target.gold_held > 0) {
+                            state.players[entity.player_id].gold += target.gold_held;
+                            target.gold_held = 0;
+
+                            update_finished = true;
+                            break;
+                        }
+
+                        // Flip switch
+                        if (target.type == ENTITY_SWITCH && target.mode == MODE_SWITCH_UP && entity.target.type == TARGET_ENTITY && entity.type == ENTITY_PYRO) {
+                            target.mode = MODE_SWITCH_DOWN;
+
+                            entity.direction = enum_direction_to_rect(entity.cell, target.cell, target_data.cell_size);
+                            entity.target = target_none();
+                            entity.mode = MODE_UNIT_PYRO_THROW;
+                            entity.animation = animation_create(ANIMATION_UNIT_ATTACK);
+                            break;
+                        }
+
+                        // Garrison
+                        if (entity.player_id == target.player_id && entity_data.garrison_size != ENTITY_CANNOT_GARRISON &&
+                                entity.target.type != TARGET_REPAIR && (entity_is_unit(target.type) || target.mode == MODE_BUILDING_FINISHED) &&
+                                entity_get_garrisoned_occupancy(state, target) + entity_data.garrison_size <= target_data.garrison_capacity) {
+                            target.garrisoned_units.push_back(entity_id);
+                            entity.garrison_id = entity.target.id;
+                            entity.mode = MODE_UNIT_IDLE;
+                            entity.target = target_none();
+                            entity_target_queue_clear(state, entity);
+                            map_set_cell_rect(state.map, CELL_LAYER_GROUND, entity.cell, entity_data.cell_size, (Cell) {
+                                .type = CELL_EMPTY, .id = ID_NULL
+                            });
+                            match_fog_update(state, state.players[entity.player_id].team, entity.cell, entity_data.cell_size, entity_data.sight, entity_has_detection(state, entity), entity_data.cell_layer, false);
+                            update_finished = true;
+                            break;
+                        }
+
+                        // Begin repair
+                        if (entity_is_building(target.type) && entity.type == ENTITY_MINER &&
+                                state.players[entity.player_id].team == state.players[target.player_id].team &&
+                                entity_is_building(target.type) && target.health < target_data.max_health) {
+                            entity.mode = target.mode == MODE_BUILDING_IN_PROGRESS ? MODE_UNIT_BUILD_ASSIST : MODE_UNIT_REPAIR;
+                            entity.direction = enum_direction_to_rect(entity.cell, target.cell, target_data.cell_size);
+                            entity.timer = UNIT_BUILD_TICK_DURATION;
+                            break;
+                        }
+
+                        entity_set_flag(entity, ENTITY_FLAG_ATTACK_SPECIFIC_ENTITY, false);
+                        entity.mode = MODE_UNIT_IDLE;
+                        entity.target = target_none();
+                        update_finished = true;
+                        break;
+                    }
+                    case TARGET_TYPE_COUNT:
+                        break;
+                }
+
+                update_finished = update_finished || !(entity.mode == MODE_UNIT_MOVE && movement_left.raw_value > 0);
+                break;
+            }
+            case MODE_UNIT_BUILD: {
+                // This code handles the case where the building is destroyed while the unit is building it
+                uint32_t building_index = state.entities.get_index_of(entity.target.id);
+                if (building_index == INDEX_INVALID || !entity_is_selectable(state.entities[building_index]) || state.entities[building_index].mode != MODE_BUILDING_IN_PROGRESS) {
+                    entity_stop_building(state, entity_id);
+                    update_finished = true;
+                    break;
+                }
+
+                entity.timer--;
+                if (entity.timer == 0) {
+                    // Building tick
+                    Entity& building = state.entities[building_index];
+
+                    building.health++;
+                    building.timer--;
+                    if (building.timer == 0) {
+                        entity_building_finish(state, entity.target.id);
+                    } else {
+                        entity.timer = UNIT_BUILD_TICK_DURATION;
+                    }
+                }
+
+                update_finished = true;
+                break;
+            }
+            case MODE_UNIT_BUILD_ASSIST:
+            case MODE_UNIT_REPAIR: {
+                // Stop repairing if the building is destroyed
+                if (entity_is_target_invalid(state, entity)) {
+                    entity.target = target_none();
+                    entity.mode = MODE_UNIT_IDLE;
+                    update_finished = true;
+                    break;
+                }
+
+                Entity& target = state.entities.get_by_id(entity.target.id);
+                const EntityData& target_data = entity_get_data(target.type);
+                int target_max_health = target_data.max_health;
+                if ((entity.mode == MODE_UNIT_REPAIR && target.health == target_max_health) ||
+                        (entity.mode == MODE_UNIT_BUILD_ASSIST && target.mode == MODE_BUILDING_FINISHED) ||
+                        state.players[entity.player_id].gold == 0) {
+                    entity.target = target_none();
+                    entity.mode = MODE_UNIT_IDLE;
+                    update_finished = true;
+                    break;
+                }
+
+                entity.timer--;
+                if (entity.timer == 0) {
+                    target.health++;
+                    if (entity.mode == MODE_UNIT_BUILD_ASSIST) {
+                        target.timer--;
+                    }
+                    target.health_regen_timer++;
+                    if (target.health_regen_timer == UNIT_REPAIR_RATE) {
+                        state.players[entity.player_id].gold--;
+                        target.health_regen_timer = 0;
+                    }
+                    if (target.health > target_max_health / 4 && !match_is_cell_rect_on_fire(state, target.cell, target_data.cell_size)) {
+                        entity_set_flag(target, ENTITY_FLAG_ON_FIRE, false);
+                    }
+                    if (entity.mode == MODE_UNIT_BUILD_ASSIST && target.timer == 0) {
+                        entity_building_finish(state, entity.target.id);
+                    } else if (entity.mode == MODE_UNIT_REPAIR && target.health == target_max_health) {
+                        entity.target = target_none();
+                        entity.mode = MODE_UNIT_IDLE;
+                    } else {
+                        entity.timer = UNIT_BUILD_TICK_DURATION;
+                    }
+                }
+
+                update_finished = true;
+                break;
+            }
+            case MODE_UNIT_IN_MINE: {
+                if (entity.timer != 0) {
+                    entity.timer--;
+                }
+                if (entity.timer == 0) {
+                    const EntityData& mine_data = entity_get_data(ENTITY_GOLDMINE);
+                    Entity& mine = state.entities.get_by_id(entity.garrison_id);
+
+                    Target nearest_hall_target = entity_target_nearest_hall(state, entity);
+                    Target entity_next_target = entity.goldmine_id == ID_NULL
+                        ? entity.target
+                        : nearest_hall_target;
+                    uint32_t target_index = entity_next_target.type == TARGET_ENTITY ? state.entities.get_index_of(entity_next_target.id) : INDEX_INVALID;
+                    ivec2 rally_cell;
+                    if (entity_next_target.type == TARGET_NONE) {
+                        rally_cell = mine.cell + ivec2(1, mine_data.cell_size);
+                    } else if (target_index != INDEX_INVALID && state.entities[target_index].type == ENTITY_HALL && entity.goldmine_id != ID_NULL) {
+                        const EntityData& hall_data = entity_get_data(ENTITY_HALL);
+                        rally_cell = map_get_nearest_cell_around_rect(state.map, CELL_LAYER_GROUND, mine.cell + ivec2(1, 1), 1, state.entities[target_index].cell, hall_data.cell_size, MAP_OPTION_IGNORE_MINERS);
+                    } else {
+                        rally_cell = entity_get_target_cell(state, entity);
+                    }
+
+                    // Avoid exiting onto the mine entrance path
+                    ivec2 exit_ignore_cell = ivec2(-1, -1);
+                    if (nearest_hall_target.type == TARGET_ENTITY) {
+                        const Entity& hall = state.entities.get_by_id(nearest_hall_target.id);
+                        exit_ignore_cell = map_get_ideal_mine_entrance_cell(state.map, mine.cell, hall.cell);
+                    }
+
+                    ivec2 exit_cell = map_get_exit_cell(state.map, CELL_LAYER_GROUND, mine.cell, mine_data.cell_size, entity_data.cell_size, rally_cell, 0, exit_ignore_cell);
+
+                    if (exit_cell.x == -1) {
+                    } else if (map_get_cell(state.map, CELL_LAYER_GROUND, exit_cell).type == CELL_EMPTY) {
+                        // Remove unit from mine
+                        for (uint32_t index = 0; index < mine.garrisoned_units.size(); index++) {
+                            if (mine.garrisoned_units[index] == entity_id) {
+                                mine.garrisoned_units.remove_at_unordered(index);
+                                break;
+                            }
+                        }
+
+                        entity.garrison_id = ID_NULL;
+                        entity.target = entity_next_target;
+                        if (entity.target.type == TARGET_NONE) {
+                            entity.goldmine_id = ID_NULL;
+                        }
+                        match_fog_update(state, state.players[entity.player_id].team, entity.cell, entity_data.cell_size, entity_data.sight, entity_has_detection(state, entity), entity_data.cell_layer, false);
+                        entity.cell = exit_cell;
+                        ivec2 exit_from_cell = get_nearest_cell_in_rect(exit_cell, mine.cell, mine_data.cell_size);
+                        entity.direction = enum_from_ivec2_direction(exit_cell - exit_from_cell);
+                        entity.position = cell_center(exit_from_cell);
+                        entity.mode = MODE_UNIT_MOVE;
+                        map_set_cell_rect(state.map, CELL_LAYER_GROUND, entity.cell, entity_data.cell_size, (Cell) {
+                            .type = entity.goldmine_id != ID_NULL && entity.target.type == TARGET_ENTITY
+                                        ? CELL_MINER
+                                        : CELL_UNIT,
+                            .id = entity_id
+                        });
+                        match_fog_update(state, state.players[entity.player_id].team, entity.cell, entity_data.cell_size, entity_data.sight, entity_has_detection(state, entity), entity_data.cell_layer, true);
+
+                        if (mine.garrisoned_units.empty() && mine.gold_held == 0) {
+                            mine.mode = MODE_GOLDMINE_COLLAPSED;
+                        }
+                    }
+                }
+
+                update_finished = true;
+                break;
+            }
+            case MODE_UNIT_ATTACK_WINDUP:
+            case MODE_UNIT_SOLDIER_RANGED_ATTACK_WINDUP: {
+                if (entity_is_target_invalid(state, entity) || state.players[entity.player_id].mode != PLAYER_MODE_ACTIVE) {
+                    entity_set_flag(entity, ENTITY_FLAG_ATTACK_SPECIFIC_ENTITY, false);
+                    entity.target = target_none();
+                    entity.mode = MODE_UNIT_IDLE;
+                    break;
+                }
+
+                if (!animation_is_playing(entity.animation)) {
+                    entity_attack_defender(state, entity_id, entity.target.id);
+                    if (entity.type == ENTITY_DETECTIVE && entity_check_flag(entity, ENTITY_FLAG_INVISIBLE)) {
+                        entity_set_flag(entity, ENTITY_FLAG_INVISIBLE, false);
+                    }
+                    if (entity.mode == MODE_UNIT_SOLDIER_RANGED_ATTACK_WINDUP) {
+                        entity_set_flag(entity, ENTITY_FLAG_CHARGED, false);
+                        entity.mode = MODE_UNIT_SOLDIER_CHARGE;
+                    } else {
+                        entity.cooldown_timer = entity_data.unit_data.attack_cooldown + lcg_rand(&state.lcg_seed) % 4;
+                        entity.mode = MODE_UNIT_IDLE;
+                    }
+                }
+
+                update_finished = true;
+                break;
+            }
+            case MODE_UNIT_SOLDIER_CHARGE: {
+                if (!animation_is_playing(entity.animation)) {
+                    entity_set_flag(entity, ENTITY_FLAG_CHARGED, true);
+                    entity.mode = MODE_UNIT_IDLE;
+                }
+
+                update_finished = true;
+                break;
+            }
+            case MODE_UNIT_PYRO_THROW: {
+                if (!animation_is_playing(entity.animation)) {
+                    entity.target = target_none();
+                    entity.mode = MODE_UNIT_IDLE;
+                }
+
+                update_finished = true;
+                break;
+            }
+            case MODE_UNIT_DEATH: {
+                if (!animation_is_playing(entity.animation)) {
+                    map_set_cell_rect(state.map, entity_data.cell_layer, entity.cell, entity_data.cell_size, (Cell) {
+                        .type = CELL_EMPTY, .id = ID_NULL
+                    });
+                    entity_release_garrisoned_units_on_death(state, entity);
+                    entity.mode = MODE_UNIT_DEATH_FADE;
+                }
+                update_finished = true;
+                break;
+            }
+            case MODE_UNIT_BALLOON_DEATH_START: {
+                if (!animation_is_playing(entity.animation)) {
+                    entity.mode = MODE_UNIT_BALLOON_DEATH;
+                    entity.animation = animation_create(entity_get_expected_animation(entity));
+                    entity.timer = ENTITY_BALLOON_DEATH_DURATION;
+                }
+                update_finished = true;
+                break;
+            }
+            case MODE_UNIT_BALLOON_DEATH: {
+                entity.timer--;
+                if (entity.timer == 0) {
+                    map_set_cell_rect(state.map, entity_data.cell_layer, entity.cell, entity_data.cell_size, (Cell) {
+                        .type = CELL_EMPTY, .id = ID_NULL
+                    });
+                    entity_release_garrisoned_units_on_death(state, entity);
+                    state.particles.push_back((Particle) {
+                        .layer = PARTICLE_LAYER_GROUND,
+                        .sprite = SPRITE_PARTICLE_CANNON_EXPLOSION,
+                        .animation = animation_create(ANIMATION_PARTICLE_CANNON_EXPLOSION),
+                        .vframe = 0,
+                        .position = entity.position.to_ivec2()
+                    });
+                    entity.mode = MODE_UNIT_DEATH_FADE;
+                }
+                update_finished = true;
+                break;
+            }
+            case MODE_MINE_ARM: {
+                entity.timer--;
+                if (entity.timer == 0) {
+                    entity.mode = MODE_BUILDING_FINISHED;
+                    entity_set_flag(entity, ENTITY_FLAG_INVISIBLE, true);
+                }
+                update_finished = true;
+                break;
+            }
+            case MODE_MINE_PRIME: {
+                entity.timer--;
+                if (entity.timer == 0) {
+                    entity_explode(state, entity_id);
+                }
+                update_finished = true;
+                break;
+            }
+            case MODE_BUILDING_FINISHED: {
+                // If player is inactive, do nothing
+                if (state.players[entity.player_id].mode != PLAYER_MODE_ACTIVE) {
+                    entity.queue.clear();
+                    update_finished = true;
+                    break;
+                }
+
+                if (!entity.queue.empty() && entity.timer != 0) {
+                    if (entity.timer == BUILDING_QUEUE_BLOCKED && !entity_building_is_supply_blocked(state, entity)) {
+                        entity.timer = building_queue_item_duration(entity.queue[0]);
+                    } else if (entity.timer != BUILDING_QUEUE_BLOCKED && entity_building_is_supply_blocked(state, entity)) {
+                        entity.timer = BUILDING_QUEUE_BLOCKED;
+                    }
+
+                    if (entity.timer != BUILDING_QUEUE_BLOCKED && entity.timer != BUILDING_QUEUE_EXIT_BLOCKED) {
+                        entity.timer--;
+                    }
+
+                    if ((entity.timer == 0 && entity.queue[0].type == BUILDING_QUEUE_ITEM_UNIT) ||
+                            entity.timer == BUILDING_QUEUE_EXIT_BLOCKED) {
+                        ivec2 rally_cell = entity.rally_point.x == -1
+                                            ? entity.cell + ivec2(0, entity_data.cell_size)
+                                            : entity.rally_point / TILE_SIZE;
+                        ivec2 ignore_cell = ivec2(-1, -1);
+                        if (entity.type == ENTITY_HALL && entity.rally_point.x != -1) {
+                            Cell map_cell = map_get_cell(state.map, CELL_LAYER_GROUND, entity.rally_point / TILE_SIZE);
+                            if (map_cell.type == CELL_GOLDMINE) {
+                                EntityId goldmine_id = map_cell.id;
+                                const Entity& goldmine = state.entities.get_by_id(goldmine_id);
+                                ignore_cell = map_get_ideal_mine_exit_path_rally_cell(state.map, goldmine.cell, entity.cell);
+                            }
+                        }
+                        ivec2 exit_cell = map_get_exit_cell(state.map, entity_data.cell_layer, entity.cell, entity_data.cell_size, entity_get_data(entity.queue[0].unit_type).cell_size, rally_cell, 0, ignore_cell);
+                        if (exit_cell.x == -1) {
+                            if (entity.timer == 0) {
+                            }
+                            entity.timer = BUILDING_QUEUE_EXIT_BLOCKED;
+                            update_finished = true;
+                            break;
+                        }
+
+                        entity.timer = 0;
+                        EntityId unit_id = entity_create(state, entity.queue[0].unit_type, exit_cell, entity.player_id);
+
+                        // Rally unit
+                        Entity& unit = state.entities.get_by_id(unit_id);
+                        Cell rally_cell_value = map_get_cell(state.map, CELL_LAYER_GROUND, rally_cell);
+                        if (unit.type == ENTITY_MINER && rally_cell_value.type == CELL_GOLDMINE) {
+                            // Rally to gold
+                            unit.target = target_entity(rally_cell_value.id);
+                        } else {
+                            // Rally to cell
+                            unit.target = target_cell(rally_cell);
+                        }
+
+                        entity_building_dequeue(state, entity);
+                    } else if (entity.timer == 0 && entity.queue[0].type == BUILDING_QUEUE_ITEM_UPGRADE) {
+                        match_grant_player_upgrade(state, entity.player_id, entity.queue[0].upgrade);
+
+                        entity_building_dequeue(state, entity);
+                    }
+                }
+
+                update_finished = true;
+                break;
+            }
+            case MODE_BUILDING_DESTROYED: {
+                if (entity.timer != 0) {
+                    entity.timer--;
+                }
+                update_finished = true;
+                break;
+            }
+            default:
+                update_finished = true;
+                break;
+        }
+    }
+
+    // Check for fire
+    // If entity is moving, check for fire based on its previous cell
+    if (!entity_is_misc(entity.type) &&
+            entity_data.cell_layer != CELL_LAYER_SKY &&
+            entity.type != ENTITY_BUNKER &&
+            entity.health != 0 && entity.garrison_id == ID_NULL) {
+        ivec2 entity_fire_cell = entity.cell;
+        if (entity_is_unit(entity.type) && entity.mode == MODE_UNIT_MOVE) {
+            entity_fire_cell = entity.cell - DIRECTION_IVEC2[entity.direction];
+        }
+        if (entity_is_building(entity.type) && entity.mode == MODE_BUILDING_FINISHED && entity.health < entity_data.max_health / 4) {
+            entity_set_flag(entity, ENTITY_FLAG_ON_FIRE, true);
+        }
+        if (match_is_cell_rect_on_fire(state, entity_fire_cell, entity_data.cell_size) || entity_check_flag(entity, ENTITY_FLAG_ON_FIRE)) {
+            if (entity.fire_damage_timer != 0) {
+                entity.fire_damage_timer--;
+            }
+            if (entity.fire_damage_timer == 0) {
+                entity.health--;
+                entity.fire_damage_timer = FIRE_DAMAGE_COOLDOWN;
+                entity_on_damage_taken(entity);
+            }
+            if (entity_is_building(entity.type)) {
+                entity_set_flag(entity, ENTITY_FLAG_ON_FIRE, true);
+            }
+        } else {
+            entity.fire_damage_timer = 0;
+        }
+    }
+
+    // Update timers
+    if (entity.cooldown_timer != 0) {
+        entity.cooldown_timer--;
+    }
+
+    if (entity.taking_damage_counter != 0) {
+        entity.taking_damage_timer--;
+        if (entity.taking_damage_timer == 0) {
+            entity.taking_damage_counter--;
+            entity_set_flag(entity, ENTITY_FLAG_DAMAGE_FLICKER, entity.taking_damage_counter == 0 ? false : !entity_check_flag(entity, ENTITY_FLAG_DAMAGE_FLICKER));
+            entity.taking_damage_timer = entity.taking_damage_counter == 0 ? 0 : UNIT_TAKING_DAMAGE_FLICKER_DURATION;
+        }
+    }
+    if (entity.health == entity_data.max_health) {
+        entity.health_regen_timer = 0;
+    }
+    if (entity_is_unit(entity.type) && entity.health_regen_timer != 0) {
+        entity.health_regen_timer--;
+        if (entity.health_regen_timer == 0) {
+            entity.health++;
+            if (entity.health != entity_data.max_health) {
+                entity.health_regen_timer = UNIT_HEALTH_REGEN_DURATION;
+            }
+        }
+    }
+
+    if (entity_is_unit(entity.type) && entity.energy < entity_data.unit_data.max_energy) {
+        if (entity.energy_regen_timer != 0) {
+            entity.energy_regen_timer--;
+        }
+        if (entity.energy_regen_timer == 0) {
+            entity.energy_regen_timer = entity_get_energy_regen_duration(entity);
+            entity.energy++;
+        }
+    }
+
+    // Moving shot
+    if (entity.type == ENTITY_JOCKEY && entity.moving_shot_target_id != ID_NULL) {
+        Target moving_shot_target = target_attack_entity(entity.moving_shot_target_id);
+        if (match_is_target_invalid(state, moving_shot_target, entity.player_id)) {
+            entity.moving_shot_target_id = ID_NULL;
+            entity.moving_shot_attack_windup_timer = 0;
+        } else {
+            entity.moving_shot_attack_windup_timer--;
+            if (entity.moving_shot_attack_windup_timer == 0) {
+                entity_attack_defender(state, entity_id, entity.moving_shot_target_id);
+                entity.cooldown_timer = entity_data.unit_data.attack_cooldown + lcg_rand(&state.lcg_seed) % 4;
+                entity.moving_shot_target_id = ID_NULL;
+            }
+        }
+    }
+
+    // Update animation
+    AnimationName expected_animation = entity_get_expected_animation(entity);
+    if (entity.animation.name != expected_animation || (!animation_is_playing(entity.animation) && expected_animation != ANIMATION_UNIT_IDLE)) {
+        entity.animation = animation_create(expected_animation);
+    }
+    int prev_hframe = entity.animation.frame.x;
+    animation_update(entity.animation);
+    if (prev_hframe != entity.animation.frame.x) {
+        if ((entity.mode == MODE_UNIT_REPAIR || entity.mode == MODE_UNIT_BUILD) && prev_hframe == 0) {
+        } else if (entity.mode == MODE_UNIT_PYRO_THROW && entity.animation.frame.x == 6) {
+            if (entity.target.type == TARGET_MOLOTOV) {
+                state.projectiles.push_back((Projectile) {
+                    .type = PROJECTILE_MOLOTOV,
+                    .position = entity.position + ivec2(DIRECTION_IVEC2[entity.direction] * 6),
+                    .target = cell_center(entity.target.cell),
+                    .source_player_id = entity.player_id
+                });
+            }
+        } else if (entity.mode == MODE_MINE_PRIME) {
+        }
+    }
+}
+
+SpriteName entity_get_sprite(const MatchState& state, const Entity& entity) {
+    const EntityData& entity_data = entity_get_data(entity.type);
+
+    if (entity.mode == MODE_BUILDING_DESTROYED) {
+        if (entity.type == ENTITY_BUNKER) {
+            return SPRITE_BUILDING_DESTROYED_BUNKER;
+        }
+        if (entity.type == ENTITY_LANDMINE) {
+            return SPRITE_BUILDING_DESTROYED_MINE;
+        }
+        switch (entity_data.cell_size) {
+            case 2:
+                return SPRITE_BUILDING_DESTROYED_2;
+            case 3:
+                return SPRITE_BUILDING_DESTROYED_3;
+            case 4:
+                return SPRITE_BUILDING_DESTROYED_4;
+            default:
+                return SPRITE_BUILDING_DESTROYED_2;
+        }
+    }
+    if (entity.mode == MODE_UNIT_BUILD || entity.mode == MODE_UNIT_REPAIR || entity.mode == MODE_UNIT_BUILD_ASSIST) {
+        return SPRITE_MINER_BUILDING;
+    }
+    if (entity.type == ENTITY_DETECTIVE && entity_check_flag(entity, ENTITY_FLAG_INVISIBLE)) {
+        return SPRITE_UNIT_DETECTIVE_INVISIBLE;
+    }
+    if (entity.type == ENTITY_WAGON && match_player_has_upgrade(state, entity.player_id, UPGRADE_WAR_WAGON)) {
+        return SPRITE_UNIT_WAR_WAGON;
+    }
+    return entity_data.sprite;
+}
+
+SpriteName entity_get_icon(const MatchState& state, EntityType type, uint8_t player_id) {
+    if (type == ENTITY_WAGON && match_player_has_upgrade(state, player_id, UPGRADE_WAR_WAGON)) {
+        return SPRITE_BUTTON_ICON_WAR_WAGON;
+    }
+    return entity_get_data(type).icon;
+}
+
+bool entity_has_detection(const MatchState& state, const Entity& entity) {
+    if (entity.type == ENTITY_DETECTIVE && match_player_has_upgrade(state, entity.player_id, UPGRADE_PRIVATE_EYE)) {
+        return true;
+    }
+    return entity_get_data(entity.type).has_detection;
+}
+
+uint32_t entity_get_energy_regen_duration(const Entity& entity) {
+    if (entity.type == ENTITY_DETECTIVE && entity_check_flag(entity, ENTITY_FLAG_INVISIBLE)) {
+        return UNIT_ENERGY_REGEN_DURATION * 2;
+    }
+    return UNIT_ENERGY_REGEN_DURATION;
+}
+
+int entity_get_armor(const MatchState& state, const Entity& entity) {
+    int armor = entity_get_data(entity.type).armor;
+    if (entity.type == ENTITY_WAGON && match_player_has_upgrade(state, entity.player_id, UPGRADE_WAR_WAGON)) {
+        armor += 2;
+    }
+    return armor;
+}
+
+int entity_get_range_squared(const MatchState& state, const Entity& entity) {
+    if (!entity_is_unit(entity.type)) {
+        return 0;
+    }
+
+    int range_squared = entity_get_data(entity.type).unit_data.range_squared;
+    if (entity.type == ENTITY_COWBOY && match_player_has_upgrade(state, entity.player_id, UPGRADE_IRON_SIGHTS)) {
+        range_squared = 25;
+    }
+    return range_squared;
+}
+
+fixed entity_get_speed(const MatchState& state, const Entity& entity) {
+    if (!entity_is_unit(entity.type)) {
+        return fixed::from_raw(0);
+    }
+
+    if (entity.type == ENTITY_BANDIT && match_player_has_upgrade(state, entity.player_id, UPGRADE_GETAWAY_BOOTS)) {
+        return fixed::from_int_and_raw_decimal(1, 25);
+    }
+    return entity_get_data(entity.type).unit_data.speed;
+}
+
+bool entity_is_selectable(const Entity& entity) {
+    if (entity_is_misc(entity.type)) {
+        return true;
+    }
+
+    return !(
+        entity.health == 0 ||
+        entity.mode == MODE_UNIT_BUILD ||
+        entity.garrison_id != ID_NULL
+    );
+}
+
+bool entity_can_be_given_orders(const MatchState& state, const Entity& entity) {
+    return !(
+        entity.health == 0 ||
+        entity.mode == MODE_UNIT_BUILD ||
+        (entity.garrison_id != ID_NULL && !entity_is_in_mine(state, entity))
+    );
+}
+
+uint32_t entity_get_elevation(const Entity& entity, const Map& map) {
+    uint32_t elevation = map_get_tile(map, entity.cell).elevation;
+    int entity_cell_size = entity_get_data(entity.type).cell_size;
+    for (int y = entity.cell.y; y < entity.cell.y + entity_cell_size; y++) {
+        for (int x = entity.cell.x; x < entity.cell.x + entity_cell_size; x++) {
+            elevation = std::max(elevation, (uint32_t)map_get_tile(map, ivec2(x, y)).elevation);
+        }
+    }
+
+    if (entity.mode == MODE_UNIT_MOVE) {
+        ivec2 unit_prev_cell = entity.cell - DIRECTION_IVEC2[entity.direction];
+        for (int y = unit_prev_cell.y; y < unit_prev_cell.y + entity_cell_size; y++) {
+            for (int x = unit_prev_cell.x; x < unit_prev_cell.x + entity_cell_size; x++) {
+                elevation = std::max(elevation, (uint32_t)map_get_tile(map, ivec2(x, y)).elevation);
+            }
+        }
+    }
+
+    return elevation;
+}
+
+Rect entity_get_rect(const Entity& entity) {
+    const EntityData& entity_data = entity_get_data(entity.type);
+    Rect rect = (Rect) {
+        .x = entity.position.x.integer_part(),
+        .y = entity.position.y.integer_part(),
+        .w = entity_data.cell_size * TILE_SIZE,
+        .h = entity_data.cell_size * TILE_SIZE
+    };
+    if (entity_is_unit(entity.type)) {
+        rect.x -= rect.w / 2;
+        rect.y -= rect.h / 2;
+    }
+    if (entity.type == ENTITY_BALLOON) {
+        rect.y -= 32;
+        rect.h += 16;
+    }
+
+    return rect;
+}
+
+fvec2 entity_get_target_position(const Entity& entity) {
+    int unit_size = entity_get_data(entity.type).cell_size * TILE_SIZE;
+    return fvec2((entity.cell * TILE_SIZE) + ivec2(unit_size / 2, unit_size / 2));
+}
+
+bool entity_check_flag(const Entity& entity, uint32_t flag) {
+    return (entity.flags & flag) == flag;
+}
+
+void entity_set_flag(Entity& entity, uint32_t flag, bool value) {
+    if (value) {
+        entity.flags |= flag;
+    } else {
+        entity.flags &= ~flag;
+    }
+}
+
+AnimationName entity_get_expected_animation(const Entity& entity) {
+    if (entity.type == ENTITY_BALLOON) {
+        switch (entity.mode) {
+            case MODE_UNIT_MOVE:
+                return ANIMATION_BALLOON_MOVE;
+            case MODE_UNIT_BALLOON_DEATH_START:
+                return ANIMATION_BALLOON_DEATH_START;
+            case MODE_UNIT_BALLOON_DEATH:
+                return ANIMATION_BALLOON_DEATH;
+            case MODE_UNIT_DEATH_FADE:
+                return ANIMATION_BALLOON_DEATH_FADE;
+            default:
+                return ANIMATION_UNIT_IDLE;
+        }
+    } else if (entity.type == ENTITY_CANNON) {
+        switch (entity.mode) {
+            case MODE_UNIT_MOVE:
+                return ANIMATION_UNIT_MOVE_CANNON;
+            case MODE_UNIT_ATTACK_WINDUP:
+                return ANIMATION_CANNON_ATTACK;
+            case MODE_UNIT_DEATH:
+                return ANIMATION_CANNON_DEATH;
+            case MODE_UNIT_DEATH_FADE:
+                return ANIMATION_CANNON_DEATH_FADE;
+            default:
+                return ANIMATION_UNIT_IDLE;
+        }
+    } else if (entity.type == ENTITY_SMITH) {
+        if (entity.queue.empty() && entity.animation.name != ANIMATION_UNIT_IDLE && entity.animation.name != ANIMATION_SMITH_END) {
+            return ANIMATION_SMITH_END;
+        } else if (entity.animation.name == ANIMATION_SMITH_END && !animation_is_playing(entity.animation)) {
+            return ANIMATION_UNIT_IDLE;
+        } else if (!entity.queue.empty() && entity.animation.name == ANIMATION_UNIT_IDLE) {
+            return ANIMATION_SMITH_BEGIN;
+        } else if (entity.animation.name == ANIMATION_SMITH_BEGIN && !animation_is_playing(entity.animation)) {
+            return ANIMATION_SMITH_LOOP;
+        } else {
+            return entity.animation.name;
+        }
+    }
+
+    switch (entity.mode) {
+        case MODE_UNIT_MOVE:
+            return ANIMATION_UNIT_MOVE;
+        case MODE_UNIT_BUILD:
+        case MODE_UNIT_BUILD_ASSIST:
+        case MODE_UNIT_REPAIR:
+            return ANIMATION_UNIT_BUILD;
+        case MODE_UNIT_ATTACK_WINDUP:
+        case MODE_UNIT_PYRO_THROW:
+            return ANIMATION_UNIT_ATTACK;
+        case MODE_UNIT_SOLDIER_RANGED_ATTACK_WINDUP:
+            return ANIMATION_SOLDIER_RANGED_ATTACK;
+        case MODE_UNIT_SOLDIER_CHARGE:
+            return ANIMATION_SOLDIER_CHARGE;
+        case MODE_UNIT_DEATH:
+            return ANIMATION_UNIT_DEATH;
+        case MODE_UNIT_DEATH_FADE:
+            return ANIMATION_UNIT_DEATH_FADE;
+        case MODE_MINE_PRIME:
+            return ANIMATION_MINE_PRIME;
+        case MODE_BUILDING_FINISHED: {
+            if (entity.type == ENTITY_WORKSHOP && !entity.queue.empty() && !(entity.timer == BUILDING_QUEUE_BLOCKED || entity.timer == BUILDING_QUEUE_EXIT_BLOCKED)) {
+                return ANIMATION_WORKSHOP;
+            } else {
+                return ANIMATION_UNIT_IDLE;
+            }
+        }
+        default:
+            return ANIMATION_UNIT_IDLE;
+    }
+}
+
+ivec2 entity_get_animation_frame(const Entity& entity) {
+    if (entity_is_unit(entity.type)) {
+        ivec2 frame = entity.animation.frame;
+
+        if (entity.type == ENTITY_BALLOON && entity.mode == MODE_UNIT_DEATH_FADE) {
+            // A bit hacky, this will just be an empty frame
+            return ivec2(2, 2);
+        }
+
+        if (entity.mode == MODE_UNIT_BUILD) {
+            frame.y = 2;
+        } else if (entity.animation.name == ANIMATION_UNIT_DEATH || entity.animation.name == ANIMATION_UNIT_DEATH_FADE ||
+                        entity.animation.name == ANIMATION_CANNON_DEATH || entity.animation.name == ANIMATION_CANNON_DEATH_FADE ||
+                        entity.animation.name == ANIMATION_BALLOON_DEATH_START || entity.animation.name == ANIMATION_BALLOON_DEATH) {
+            frame.y = entity.direction == DIRECTION_NORTH ? 1 : 0;
+        } else if (entity.direction == DIRECTION_NORTH) {
+            frame.y = 1;
+        } else if (entity.direction == DIRECTION_SOUTH) {
+            frame.y = 0;
+        } else {
+            frame.y = 2;
+        }
+
+        // Miner holding gold frame adjustment
+        if (entity.gold_held && (entity.animation.name == ANIMATION_UNIT_MOVE || entity.animation.name == ANIMATION_UNIT_IDLE)) {
+            frame.y += 3;
+        }
+
+        // Sapper attack frame adjustment
+        if (entity.type == ENTITY_SAPPER && entity.target.type == TARGET_ATTACK_ENTITY) {
+            frame.y += 3;
+        }
+
+        if (entity.type == ENTITY_JOCKEY && entity.moving_shot_target_id != ID_NULL) {
+            uint32_t shoot_animation_hframe_offset = (JOCKEY_MOVING_SHOT_TIMER_DURATION - (uint32_t)entity.moving_shot_attack_windup_timer) / JOCKEY_MOVING_SHOT_FRAME_DURATION;
+            if (entity.animation.name == ANIMATION_UNIT_IDLE) {
+                frame.x = 5 + shoot_animation_hframe_offset;
+            } else if (entity.animation.name == ANIMATION_UNIT_MOVE) {
+                frame.x = ((frame.x - 1) * JOCKEY_MOVING_SHOT_FRAME_COUNT) + shoot_animation_hframe_offset;
+                frame.y += 3;
+            }
+        }
+
+        return frame;
+    } else if (entity_is_building(entity.type)) {
+        if (entity.mode == MODE_BUILDING_DESTROYED || entity.mode == MODE_MINE_ARM) {
+            return ivec2(0, 0);
+        }
+        if (entity.mode == MODE_BUILDING_IN_PROGRESS) {
+            int max_health = entity_get_data(entity.type).max_health;
+            return ivec2((3 * (max_health - entity.timer)) / max_health, 0);
+        }
+        if (entity.mode == MODE_MINE_PRIME) {
+            return entity.animation.frame;
+        }
+        if (entity.animation.name != ANIMATION_UNIT_IDLE && entity.type != ENTITY_SMITH) {
+            return entity.animation.frame;
+        }
+        // Building finished frame
+        return ivec2(3, 0);
+    } else if (entity.type == ENTITY_GOLDMINE) {
+        if (entity.mode == MODE_GOLDMINE_COLLAPSED) {
+            return ivec2(2, 0);
+        }
+        if (entity.mode == MODE_GOLDMINE_RIGGED) {
+            return ivec2(3, 0);
+        }
+        if (!entity.garrisoned_units.empty()) {
+            return ivec2(1, 0);
+        }
+        return ivec2(0, 0);
+    } else if (entity.type == ENTITY_CRATE) {
+        return ivec2(entity.gold_held ? 1 : 0, 0);
+    } else if (entity.type == ENTITY_SWITCH) {
+        return ivec2(entity.mode == MODE_SWITCH_UP ? 0 : 1, 0);
+    }
+
+    return ivec2(0, 0);
+}
+
+Rect entity_goldmine_get_block_building_rect(ivec2 cell) {
+    return (Rect) { .x = cell.x - 4, .y = cell.y - 4, .w = 11, .h = 11 };
+}
+
+bool entity_is_mining(const MatchState& state, const Entity& entity) {
+    if (entity.target.type != TARGET_ENTITY || entity.type != ENTITY_MINER) {
+        return false;
+    }
+
+    const Entity& target = state.entities.get_by_id(entity.target.id);
+    return (target.type == ENTITY_GOLDMINE && target.gold_held > 0) ||
+           (target.type == ENTITY_HALL && target.mode == MODE_BUILDING_FINISHED && entity.goldmine_id != ID_NULL &&
+                entity.player_id == target.player_id && entity.gold_held > 0);
+}
+
+bool entity_is_in_mine(const MatchState& state, const Entity& entity) {
+    return entity.garrison_id != ID_NULL && state.entities.get_by_id(entity.garrison_id).type == ENTITY_GOLDMINE;
+}
+
+bool entity_is_idle_miner(const Entity& entity) {
+    return entity.type == ENTITY_MINER && entity.mode == MODE_UNIT_IDLE &&
+            entity.target.type == TARGET_NONE && entity.target_queue_index == ENTITY_TARGET_QUEUE_INDEX_NONE &&
+            entity_is_selectable(entity);
+}
+
+void entity_get_mining_path_to_avoid(const MatchState& state, const Entity& entity, MapPath* path) {
+    if (!entity_is_mining(state, entity)) {
+        return;
+    }
+
+    Target hall_target = entity_target_nearest_hall(state, entity);
+    if (hall_target.type != TARGET_ENTITY) {
+        return;
+    }
+    Target goldmine_target = entity_target_nearest_goldmine(state, entity);
+    if (goldmine_target.type != TARGET_ENTITY) {
+        return;
+    }
+    const Entity& goldmine = state.entities.get_by_id(goldmine_target.id);
+    const Entity& hall = state.entities.get_by_id(hall_target.id);
+
+    if (entity.target.type == TARGET_ENTITY && entity.target.id == goldmine_target.id) {
+        // We're entering the goldmine, so avoid the mine exit path
+        map_get_ideal_mine_exit_path(state.map, goldmine.cell, hall.cell, path);
+    } else if (entity.target.type == TARGET_ENTITY && entity.target.id == hall_target.id) {
+        // We're leaving the goldmine, so avoid the mine entrance path
+        map_get_ideal_mine_entrance_path(state.map, goldmine.cell, hall.cell, path);
+    }
+
+    if (path->size() > 8) {
+        path->clear();
+        return;
+    }
+}
+
+bool entity_is_blocker_walking_towards_entity(const MatchState& state, const Entity& entity) {
+    const MapPath* entity_path = state.entity_paths.get(entity.path_index);
+    Cell blocking_cell = map_get_cell(state.map, entity_get_data(entity.type).cell_layer, entity_path->back());
+    if (blocking_cell.type != CELL_MINER) {
+        return false;
+    }
+
+    const Entity& blocker = state.entities.get_by_id(blocking_cell.id);
+    return entity.direction == ((blocker.direction + 4) % DIRECTION_COUNT);
+}
+
+bool entity_is_visible_to_player(const MatchState& state, const Entity& entity, uint8_t player_id) {
+    if (entity.garrison_id != ID_NULL) {
+        return false;
+    }
+
+    if (!entity_is_misc(entity.type) && state.players[entity.player_id].team == state.players[player_id].team) {
+        return true;
+    }
+
+    const bool entity_is_invisible = entity_check_flag(entity, ENTITY_FLAG_INVISIBLE);
+    const int entity_cell_size = entity_get_data(entity.type).cell_size;
+    const uint8_t player_team = state.players[player_id].team;
+
+    for (int y = entity.cell.y; y < entity.cell.y + entity_cell_size; y++) {
+        for (int x = entity.cell.x; x < entity.cell.x + entity_cell_size; x++) {
+            if (state.fog[player_team][x + (y * state.map.width)] > 0 &&
+                    (!entity_is_invisible || state.detection[player_team][x + (y * state.map.width)] > 0)) {
+                return true;
+            }
+        }
+    }
+
+    if (entity.mode == MODE_UNIT_MOVE) {
+        ivec2 prev_cell = entity.cell - DIRECTION_IVEC2[entity.direction];
+        for (int y = prev_cell.y; y < prev_cell.y + entity_cell_size; y++) {
+            for (int x = prev_cell.x; x < prev_cell.x + entity_cell_size; x++) {
+                if (state.fog[player_team][x + (y * state.map.width)] > 0 &&
+                        (!entity_is_invisible || state.detection[player_team][x + (y * state.map.width)] > 0)) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+bool entity_has_path(const Entity& entity) {
+    return entity.path_index != ENTITY_PATH_INDEX_NONE;
+}
+
+void entity_pathfind(MatchState& state, Entity& entity, ivec2 to, uint32_t options, const MapPath* ignore_cells) {
+    if (entity_has_path(entity)) {
+        entity_path_clear(state, entity);
+    }
+
+    const EntityData& entity_data = entity_get_data(entity.type);
+
+    entity.path_index = state.entity_paths.reserve();
+    MapPath* entity_path = state.entity_paths.get(entity.path_index);
+    map_pathfind(state.map, entity_data.cell_layer, entity.cell, to, entity_data.cell_size, options, ignore_cells, entity_path);
+
+    if (entity_path->empty()) {
+        entity_path_clear(state, entity);
+    }
+}
+
+void entity_path_clear(MatchState& state, Entity& entity) {
+    if (entity.path_index == ENTITY_PATH_INDEX_NONE) {
+        return;
+    }
+    state.entity_paths.release(entity.path_index);
+    entity.path_index = ENTITY_PATH_INDEX_NONE;
+}
+
+/**
+ * X
+ * |
+ * |     A
+ * |
+ * O
+ *
+ * Imagine that O is an entity and it is attacking unit A
+ * Unit A used to be standing at point X, and so unit O's path goes to point X
+ * But now unit A has moved to the side a little, and yet unit O will follow the
+ * path all the way to X anyways.
+ *
+ * This function detects when we're in such a situation. If it returns true, it
+ * means we should clear O's path and make a new path that is more direct to A.
+ */
+//
+bool entity_is_path_end_too_far_from_target(const MatchState& state, const Entity& entity) {
+    // Only apply this logic when we're moving towards an entity
+    if ((entity.target.type == TARGET_ENTITY || entity.target.type == TARGET_ATTACK_ENTITY)) {
+        return false;
+    }
+
+    // If we don't have a path, then there's no need to discard our current path, so return false
+    if (!entity_has_path(entity)) {
+        return false;
+    }
+
+    const MapPath* entity_path = state.entity_paths.get(entity.path_index);
+
+    // If the path is really long, then don't concern ourselves with re-calculating just yet
+    if (entity_path->size() >= 8) {
+        return false;
+    }
+
+    // Return true if the end of our path is far away from our target cell
+    // Note that entity_path[0] is in fact the path end because paths are consumed in reverse
+    return ivec2::manhattan_distance((*entity_path)[0], entity_get_target_cell(state, entity)) > 8;
+}
+
+void entity_set_target(MatchState& state, Entity& entity, Target target) {
+    // If the entity is not building but is en-route to build something, refund it before setting target
+    if (entity.target.type == TARGET_BUILD) {
+        entity_refund_target_build(state, entity, entity.target);
+    }
+
+    entity.target = target;
+    entity_path_clear(state, entity);
+    entity.goldmine_id = ID_NULL;
+    entity.attack_move_cell = target.type == TARGET_ATTACK_CELL ? target.cell : ivec2(-1, -1);
+    entity_set_flag(entity, ENTITY_FLAG_HOLD_POSITION, false);
+    entity_set_flag(entity, ENTITY_FLAG_ATTACK_SPECIFIC_ENTITY, target.type == TARGET_ATTACK_ENTITY);
+
+    if (entity.mode != MODE_UNIT_MOVE && entity.mode != MODE_UNIT_IN_MINE) {
+        // Abandon current behavior in favor of new order
+        entity.timer = 0;
+        entity.pathfind_attempts = 0;
+        entity.mode = MODE_UNIT_IDLE;
+    }
+    if (entity.mode == MODE_UNIT_IN_MINE) {
+        // Force an early exit of the mine
+        entity.timer = 0;
+    }
+}
+
+void entity_target_queue_push(MatchState& state, Entity& entity, Target target) {
+    TargetQueue* target_queue;
+
+    if (entity.target_queue_index == ENTITY_TARGET_QUEUE_INDEX_NONE) {
+        entity.target_queue_index = state.entity_target_queues.reserve();
+        target_queue = state.entity_target_queues.get(entity.target_queue_index);
+        target_queue->clear();
+    } else {
+        target_queue = state.entity_target_queues.get(entity.target_queue_index);
+    }
+
+    if (target_queue->is_full()) {
+    } else {
+        target_queue->push(target);
+    }
+}
+
+void entity_target_queue_clear(MatchState& state, Entity& entity) {
+    if (entity.target_queue_index == ENTITY_TARGET_QUEUE_INDEX_NONE) {
+        return;
+    }
+
+    TargetQueue* target_queue = state.entity_target_queues.get(entity.target_queue_index);
+    for (uint32_t target_queue_index = 0; target_queue_index < target_queue->size(); target_queue_index++) {
+        const Target& target = (*target_queue)[target_queue_index];
+        if (target.type == TARGET_BUILD) {
+            entity_refund_target_build(state, entity, target);
+        }
+    }
+
+    state.entity_target_queues.release(entity.target_queue_index);
+    entity.target_queue_index = ENTITY_TARGET_QUEUE_INDEX_NONE;
+}
+
+void entity_refund_target_build(MatchState& state, Entity& entity, const Target& target) {
+    const EntityData& entity_data = entity_get_data(entity.type);
+    const EntityData& building_data = entity_get_data(target.build.building_type);
+    const bool building_costs_energy = (building_data.building_data.options & BUILDING_COSTS_ENERGY) == BUILDING_COSTS_ENERGY;
+    if (building_costs_energy) {
+        entity.energy = std::min(entity.energy + building_data.gold_cost, entity_data.unit_data.max_energy);
+    } else {
+        state.players[entity.player_id].gold += building_data.gold_cost;
+    }
+}
+
+bool entity_is_target_invalid(const MatchState& state, const Entity& entity) {
+    if (match_is_target_invalid(state, entity.target, entity.player_id)) {
+        return true;
+    }
+
+    // Abandon target if it is within min range so that we can hopefully acquire a better one
+    // But if they have the bayonets upgrade, then don't do this so that they can use bayonets
+    if (entity.target.type == TARGET_ATTACK_ENTITY &&
+            entity_is_target_within_min_range(entity, state.entities.get_by_id(entity.target.id)) &&
+            !(entity.type == ENTITY_SOLDIER && match_player_has_upgrade(state, entity.player_id, UPGRADE_BAYONETS))) {
+        return true;
+    }
+
+    return false;
+}
+
+bool entity_has_reached_target(const MatchState& state, const Entity& entity) {
+    switch (entity.target.type) {
+        case TARGET_NONE:
+            return true;
+        case TARGET_CELL:
+        case TARGET_ATTACK_CELL:
+            return entity.cell == entity.target.cell;
+        case TARGET_BUILD: {
+            if (entity.target.build.building_type == ENTITY_LANDMINE) {
+                return ivec2::manhattan_distance(entity.cell, entity.target.build.building_cell) == 1;
+            }
+            return entity.cell == entity.target.build.unit_cell;
+        }
+        case TARGET_BUILD_ASSIST: {
+            const Entity& builder = state.entities.get_by_id(entity.target.id);
+
+            int building_size = entity_get_data(builder.target.build.building_type).cell_size;
+            Rect building_rect = (Rect) {
+                .x = builder.target.build.building_cell.x, .y = builder.target.build.building_cell.y,
+                .w = building_size, .h = building_size
+            };
+
+            int unit_size = entity_get_data(entity.type).cell_size;
+            Rect unit_rect = (Rect) {
+                .x = entity.cell.x, .y = entity.cell.y,
+                .w = unit_size, .h = unit_size
+            };
+
+            return unit_rect.is_adjacent_to(building_rect);
+        }
+        case TARGET_UNLOAD:
+            return entity.path_index == ENTITY_PATH_INDEX_NONE && ivec2::manhattan_distance(entity.cell, entity.target.cell) < 3;
+        case TARGET_ENTITY:
+        case TARGET_ATTACK_ENTITY:
+        case TARGET_REPAIR: {
+            const Entity& target = state.entities.get_by_id(entity.target.id);
+            return entity_is_target_in_range(state, entity, target, entity.target.type);
+        }
+        case TARGET_MOLOTOV: {
+            return ivec2::euclidean_distance_squared(entity.cell, entity.target.cell) <= MOLOTOV_RANGE_SQUARED;
+        }
+        case TARGET_PATROL:
+            return false;
+        case TARGET_TYPE_COUNT:
+            return false;
+    }
+}
+
+bool entity_is_target_in_range(const MatchState& state, const Entity& entity, const Entity& target, TargetType target_type) {
+    const Entity& reference_entity = entity.garrison_id == ID_NULL ? entity : state.entities.get_by_id(entity.garrison_id);
+    int reference_entity_size = entity_get_data(reference_entity.type).cell_size;
+    Rect entity_rect = (Rect) {
+        .x = reference_entity.cell.x, .y = reference_entity.cell.y,
+        .w = reference_entity_size, .h = reference_entity_size
+    };
+
+    int target_size = entity_get_data(target.type).cell_size;
+    Rect target_rect = (Rect) {
+        .x = target.cell.x, .y = target.cell.y,
+        .w = target_size, .h = target_size
+    };
+
+    if (entity.target.type != TARGET_ATTACK_ENTITY && (entity.type == ENTITY_BALLOON || target.type == ENTITY_BALLOON)) {
+        return entity.cell == entity_get_target_cell(state, entity);
+    }
+
+    int entity_range_squared = entity_get_range_squared(state, entity);
+    return target_type != TARGET_ATTACK_ENTITY || entity_range_squared == 1
+                ? entity_rect.is_adjacent_to(target_rect)
+                : Rect::euclidean_distance_squared_between(entity_rect, target_rect) <= entity_range_squared;
+}
+
+bool entity_is_target_within_min_range(const Entity& entity, const Entity& target) {
+    const EntityData& entity_data = entity_get_data(entity.type);
+    const EntityData& target_data = entity_get_data(target.type);
+
+    // Min range is ignored when the target is in the sky
+    // Min range is also ignored when the attacking entity is garrisoned
+    if (entity.garrison_id != ID_NULL ||
+            target_data.cell_layer == CELL_LAYER_SKY) {
+        return false;
+    }
+
+    Rect entity_rect = (Rect) {
+        .x = entity.cell.x, .y = entity.cell.y,
+        .w = entity_data.cell_size, .h = entity_data.cell_size
+    };
+    Rect target_rect = (Rect) {
+        .x = target.cell.x, .y = target.cell.y,
+        .w = target_data.cell_size, .h = target_data.cell_size
+    };
+
+    return Rect::euclidean_distance_squared_between(entity_rect, target_rect) < entity_data.unit_data.min_range_squared;
+}
+
+bool entity_is_moving_shot_target_moving_away_from_entity(const MatchState& state, const Entity& entity) {
+    const Entity& target = state.entities.get_by_id(entity.target.id);
+
+    // If they don't have a path, then they're not moving, so they're not moving away
+    if (target.path_index == ENTITY_PATH_INDEX_NONE) {
+        return false;
+    }
+
+    // If they do have a path, we can use the target's future location to check
+    // whether they are moving away.
+
+    // Determine future target cell
+    const MapPath* target_path = state.entity_paths.get(target.path_index);
+    const uint32_t target_path_index = std::min(3U, target_path->size() - 1U);
+    const ivec2 target_future_cell = target_path->get_from_top(target_path_index);
+
+    const int future_distance_from_target = ivec2::manhattan_distance(entity.cell, target_future_cell);
+    return future_distance_from_target > 1 &&
+        future_distance_from_target > ivec2::manhattan_distance(entity.cell, target.cell);
+}
+
+ivec2 entity_get_target_cell_helper(const MatchState& state, const Entity& entity) {
+    switch (entity.target.type) {
+        case TARGET_NONE:
+            return entity.cell;
+        case TARGET_BUILD: {
+            if (entity.target.build.building_type == ENTITY_LANDMINE) {
+                return map_get_nearest_cell_around_rect(state.map, CELL_LAYER_GROUND, entity.cell, entity_get_data(entity.type).cell_size, entity.target.build.building_cell, entity_get_data(ENTITY_LANDMINE).cell_size, 0);
+            }
+            return entity.target.build.unit_cell;
+        }
+        case TARGET_BUILD_ASSIST: {
+            const Entity& builder = state.entities.get_by_id(entity.target.id);
+            return map_get_nearest_cell_around_rect(
+                        state.map,
+                        CELL_LAYER_GROUND,
+                        entity.cell,
+                        entity_get_data(entity.type).cell_size,
+                        builder.target.build.building_cell,
+                        entity_get_data(builder.target.build.building_type).cell_size,
+                        0, ivec2(-1, -1));
+        }
+        case TARGET_CELL:
+        case TARGET_ATTACK_CELL:
+        case TARGET_UNLOAD:
+        case TARGET_MOLOTOV:
+        case TARGET_PATROL: {
+            return entity.target.cell;
+        }
+        case TARGET_ENTITY:
+        case TARGET_ATTACK_ENTITY:
+        case TARGET_REPAIR: {
+            const Entity& target = state.entities.get_by_id(entity.target.id);
+            int entity_cell_size = entity_get_data(entity.type).cell_size;
+            int target_cell_size = entity_get_data(target.type).cell_size;
+            if (entity.type == ENTITY_BALLOON || target.type == ENTITY_BALLOON) {
+                switch (target_cell_size) {
+                    case 3:
+                    case 4:
+                        return target.cell + ivec2(1, 1);
+                    default:
+                        return target.cell;
+                }
+            }
+            ivec2 ignore_cell = ivec2(-1, -1);
+            if (target.type == ENTITY_GOLDMINE) {
+                Target hall_target = entity_target_nearest_hall(state, entity);
+                if (hall_target.type != TARGET_NONE) {
+                    const Entity& hall = state.entities.get_by_id(hall_target.id);
+                    const EntityData& hall_data = entity_get_data(ENTITY_HALL);
+                    ivec2 rally_cell = map_get_nearest_cell_around_rect(state.map, CELL_LAYER_GROUND, target.cell + ivec2(1, 1), 1, hall.cell, hall_data.cell_size, MAP_OPTION_IGNORE_MINERS);
+                    ignore_cell = map_get_exit_cell(state.map, CELL_LAYER_GROUND, target.cell, target_cell_size, entity_cell_size, rally_cell, MAP_OPTION_IGNORE_MINERS);
+                }
+            }
+            return map_get_nearest_cell_around_rect(state.map, CELL_LAYER_GROUND, entity.cell, entity_cell_size, target.cell, target_cell_size, entity_is_mining(state, entity) ? MAP_OPTION_IGNORE_MINERS : 0, ignore_cell);
+        }
+        case TARGET_TYPE_COUNT:
+            return ivec2(-1, -1);
+    }
+}
+
+ivec2 entity_get_target_cell(const MatchState& state, const Entity& entity) {
+    ivec2 target_cell = entity_get_target_cell_helper(state, entity);
+    if (entity.type == ENTITY_BALLOON && target_cell.x != -1 && target_cell.y < 2) {
+        target_cell.y = 2;
+    }
+    return target_cell;
+}
+
+Target entity_target_nearest_goldmine(const MatchState& state, const Entity& entity) {
+    const uint8_t entity_team = state.players[entity.player_id].team;
+    const uint32_t goldmine_cell_size = entity_get_data(ENTITY_GOLDMINE).cell_size;
+    EntityId goldmine_id = match_find_best_entity(state, (MatchFindBestEntityParams) {
+        .filter = [&state, entity_team, goldmine_cell_size](const Entity& goldmine, EntityId goldmine_id) {
+            if (goldmine.type != ENTITY_GOLDMINE || goldmine.gold_held == 0) {
+                return false;
+            }
+            if (match_is_cell_rect_revealed(state, entity_team, goldmine.cell, goldmine_cell_size)) {
+                return true;
+            }
+            if (match_is_cell_rect_explored(state, entity_team, goldmine.cell, goldmine_cell_size) &&
+                    match_team_remembers_entity(state, entity_team, goldmine_id)) {
+                return true;
+            }
+            return false;
+        },
+        .compare = match_compare_closest_manhattan_distance_to(entity.cell)
+    });
+    if (goldmine_id != ID_NULL) {
+        return target_entity(goldmine_id);
+    }
+
+    return target_none();
+}
+
+Target entity_target_nearest_hall(const MatchState& state, const Entity& entity) {
+    const EntityData& entity_data = entity_get_data(entity.type);
+    Rect entity_rect = (Rect) {
+        .x = entity.cell.x, .y = entity.cell.y,
+        .w = entity_data.cell_size, .h = entity_data.cell_size
+    };
+    uint32_t nearest_enemy_index = INDEX_INVALID;
+    int nearest_enemy_dist = -1;
+
+    for (uint32_t other_index = 0; other_index < state.entities.size(); other_index++) {
+        const Entity& other = state.entities[other_index];
+
+        if (other.player_id != entity.player_id || other.type != ENTITY_HALL || other.mode != MODE_BUILDING_FINISHED) {
+            continue;
+        }
+
+        const EntityData& other_data = entity_get_data(other.type);
+        Rect other_rect = (Rect) {
+            .x = other.cell.x, .y = other.cell.y,
+            .w = other_data.cell_size, .h = other_data.cell_size
+        };
+
+        int other_dist = Rect::euclidean_distance_squared_between(entity_rect, other_rect);
+        if (nearest_enemy_index == INDEX_INVALID || other_dist < nearest_enemy_dist) {
+            nearest_enemy_index = other_index;
+            nearest_enemy_dist = other_dist;
+        }
+    }
+
+    if (nearest_enemy_index == INDEX_INVALID) {
+        return target_none();
+    }
+
+    return target_entity(state.entities.get_id_of(nearest_enemy_index));
+}
+
+uint32_t entity_get_target_attack_priority(const Entity& entity, const Entity& target) {
+    // Sappers don't care about attack priority, they treat everyone the same and explode the nearest target
+    if (entity.type == ENTITY_SAPPER) {
+        return 1;
+    }
+    if (target.type == ENTITY_BUNKER && !target.garrisoned_units.empty()) {
+        return 2;
+    }
+    const EntityData& target_data = entity_get_data(target.type);
+    if ((entity.type == ENTITY_MINER || entity.type == ENTITY_BANDIT) && target_data.cell_layer == CELL_LAYER_SKY) {
+        return 0;
+    }
+    return target_data.attack_priority;
+}
+
+Target entity_target_nearest_enemy(const MatchState& state, const Entity& entity) {
+    const Entity& reference_entity = entity.garrison_id == ID_NULL ? entity : state.entities.get_by_id(entity.garrison_id);
+    const EntityData& reference_entity_data = entity_get_data(reference_entity.type);
+    // This radius makes it so that enemies can target farther than they themselves can see
+    // But the enemies player will still need to have vision of the unit before the entity
+    // attacks it. This prevents entities from just standing there while their friends are
+    // in a fight
+    static const int ENTITY_TARGET_RADIUS = 16;
+    Rect entity_rect = (Rect) {
+        .x = reference_entity.cell.x, .y = reference_entity.cell.y,
+        .w = reference_entity_data.cell_size, .h = reference_entity_data.cell_size
+    };
+    Rect entity_sight_rect = (Rect) {
+        .x = reference_entity.cell.x - ENTITY_TARGET_RADIUS,
+        .y = reference_entity.cell.y - ENTITY_TARGET_RADIUS,
+        .w = 2 * ENTITY_TARGET_RADIUS,
+        .h = 2 * ENTITY_TARGET_RADIUS
+    };
+    uint32_t nearest_enemy_index = INDEX_INVALID;
+    int nearest_enemy_dist = -1;
+    uint32_t nearest_attack_priority;
+
+    for (uint32_t other_index = 0; other_index < state.entities.size(); other_index++) {
+        const Entity& other = state.entities[other_index];
+        const EntityData& other_data = entity_get_data(other.type);
+
+        // Goldmines are not enemies
+        if (entity_is_misc(other.type)) {
+            continue;
+        }
+        // Allies are not enemies
+        if (state.players[other.player_id].team == state.players[entity.player_id].team) {
+            continue;
+        }
+        // Don't attack non-selectable entities
+        if (!entity_is_selectable(other)) {
+            continue;
+        }
+        // Don't attack entities that the player can't see
+        if (!entity_is_visible_to_player(state, other, entity.player_id)) {
+            continue;
+        }
+        // Don't attack entities that we can't target
+        if (other_data.cell_layer == CELL_LAYER_SKY &&
+                (entity.type == ENTITY_BANDIT ||
+                entity.type == ENTITY_CANNON ||
+                entity.type == ENTITY_SAPPER)) {
+            continue;
+        }
+        // Don't attack entities that are within min range
+        if (entity_is_target_within_min_range(entity, other) &&
+                !(entity.type == ENTITY_SOLDIER && match_player_has_upgrade(state, entity.player_id, UPGRADE_BAYONETS))) {
+            continue;
+        }
+        // If garrisoned, don't attack entities that are outside of our range
+        if (entity.garrison_id != ID_NULL && !entity_is_target_in_range(state, entity, other, TARGET_ATTACK_ENTITY)) {
+            continue;
+        }
+        // Don't attack entities that this unit can't see
+        Rect other_rect = (Rect) {
+            .x = other.cell.x, .y = other.cell.y,
+            .w = other_data.cell_size, .h = other_data.cell_size
+        };
+        if (!entity_sight_rect.intersects(other_rect)) {
+            continue;
+        }
+
+        int other_dist = Rect::euclidean_distance_squared_between(entity_rect, other_rect);
+        uint32_t other_attack_priority = entity_get_target_attack_priority(entity, other);
+        if (nearest_enemy_index == INDEX_INVALID || other_attack_priority > nearest_attack_priority || (other_dist < nearest_enemy_dist && other_attack_priority == nearest_attack_priority)) {
+            nearest_enemy_index = other_index;
+            nearest_enemy_dist = other_dist;
+            nearest_attack_priority = other_attack_priority;
+        }
+    }
+
+    if (nearest_enemy_index == INDEX_INVALID) {
+        return target_none();
+    }
+
+    return target_attack_entity(state.entities.get_id_of(nearest_enemy_index));
+}
+
+void entity_attack_defender(MatchState& state, EntityId attacker_id, EntityId defender_id) {
+    Entity& attacker = state.entities.get_by_id(attacker_id);
+    Entity& defender = state.entities.get_by_id(defender_id);
+    const EntityData& attacker_data = entity_get_data(attacker.type);
+    const EntityData& defender_data = entity_get_data(defender.type);
+
+    const bool attack_with_bayonets = entity_is_soldier_attacking_with_bayonets(attacker);
+    const int accuracy = entity_get_accuracy_against_defender(state, attacker, defender, attacker_data, defender_data);
+
+    // Bunker particle
+    if (attacker.garrison_id != ID_NULL) {
+        Entity& carrier = state.entities.get_by_id(attacker.garrison_id);
+        int particle_index = lcg_rand(&state.lcg_seed) % 4;
+        ivec2 particle_position;
+        if (carrier.type == ENTITY_BUNKER) {
+            particle_position = (carrier.cell * TILE_SIZE) + BUNKER_PARTICLE_OFFSETS[particle_index];
+        } else if (carrier.type == ENTITY_WAGON) {
+            ivec2 wagon_sprite_frame_size = ivec2(40, 34);
+            particle_position = carrier.position.to_ivec2() - (ivec2(wagon_sprite_frame_size.x, wagon_sprite_frame_size.y) / 2);
+            if (carrier.direction == DIRECTION_SOUTH) {
+                particle_position += WAR_WAGON_DOWN_PARTICLE_OFFSETS[particle_index];
+            } else if (carrier.direction == DIRECTION_NORTH) {
+                particle_position += WAR_WAGON_UP_PARTICLE_OFFSETS[particle_index];
+            } else {
+                ivec2 offset = WAR_WAGON_RIGHT_PARTICLE_OFFSETS[particle_index];
+                if (carrier.direction > DIRECTION_SOUTH) {
+                    offset.x = wagon_sprite_frame_size.x - offset.x;
+                }
+                particle_position += offset;
+            }
+        }
+
+        state.particles.push_back((Particle) {
+            .layer = PARTICLE_LAYER_GROUND,
+            .sprite = SPRITE_PARTICLE_BUNKER_FIRE,
+            .animation = animation_create(ANIMATION_PARTICLE_BUNKER_COWBOY),
+            .vframe = 0,
+            .position = particle_position
+        });
+    }
+
+    // Fog reveal
+    if (entity_get_elevation(attacker, state.map) > entity_get_elevation(defender, state.map) &&
+            !entity_check_flag(attacker, ENTITY_FLAG_INVISIBLE)) {
+        FogReveal reveal = (FogReveal) {
+            .team = state.players[defender.player_id].team,
+            .cell = attacker.cell,
+            .cell_size = attacker_data.cell_size,
+            .sight = 3,
+            .timer = FOG_REVEAL_DURATION
+        };
+        match_fog_update(state, reveal.team, reveal.cell, reveal.cell_size, reveal.sight, false, CELL_LAYER_GROUND, true);
+        state.fog_reveals.push_back(reveal);
+    }
+
+    int accuracy_roll = lcg_rand(&state.lcg_seed) % 100;
+    bool attack_missed = accuracy < accuracy_roll;
+    bool attack_is_melee = attack_with_bayonets || entity_get_range_squared(state, attacker) == 1;
+    if (attack_missed && attack_is_melee) {
+        return;
+    }
+
+    // Hit position will be the location of the particle
+    // It will also determine who the attack hits if the attack misses
+    Rect defender_rect = entity_get_rect(defender);
+    ivec2 hit_position;
+    if (attack_missed) {
+        // Chooses a hit position for the particle in a donut
+        int hit_x = lcg_rand(&state.lcg_seed) % (TILE_SIZE * 2);
+        int hit_y = lcg_rand(&state.lcg_seed) % (TILE_SIZE * 2);
+        if (hit_x >= TILE_SIZE) {
+            hit_x += TILE_SIZE;
+        }
+        if (hit_y >= TILE_SIZE) {
+            hit_y += TILE_SIZE;
+        }
+
+        hit_position = ivec2(defender_rect.x - TILE_SIZE + hit_x, defender_rect.y - TILE_SIZE + hit_y);
+    } else {
+        hit_position.x = defender_rect.x + (defender_rect.w / 4) + (lcg_rand(&state.lcg_seed) % (defender_rect.w / 2));
+        hit_position.y = defender_rect.y + (defender_rect.h / 4) + (lcg_rand(&state.lcg_seed) % (defender_rect.h / 2));
+    }
+
+    // Create particle effect
+    if (attacker.type == ENTITY_CANNON) {
+        state.particles.push_back((Particle) {
+            .layer = PARTICLE_LAYER_GROUND,
+            .sprite = SPRITE_PARTICLE_CANNON_EXPLOSION,
+            .animation = animation_create(ANIMATION_PARTICLE_CANNON_EXPLOSION),
+            .vframe = 0,
+            .position = hit_position
+        });
+    } else if (attacker.type == ENTITY_COWBOY || (attacker.type == ENTITY_SOLDIER && !attack_with_bayonets) || attacker.type == ENTITY_DETECTIVE || attacker.type == ENTITY_JOCKEY) {
+        state.particles.push_back((Particle) {
+            .layer = defender_data.cell_layer == CELL_LAYER_SKY
+                ? PARTICLE_LAYER_SKY
+                : PARTICLE_LAYER_GROUND,
+            .sprite = SPRITE_PARTICLE_SPARKS,
+            .animation = animation_create(ANIMATION_PARTICLE_SPARKS),
+            .vframe = lcg_rand(&state.lcg_seed) % 3,
+            .position = hit_position
+        });
+    }
+
+    // Deal damage
+    if (!attack_missed) {
+        int attacker_damage = attack_with_bayonets ? SOLDIER_BAYONET_DAMAGE : attacker_data.unit_data.damage;
+        int damage = std::max(1, attacker_damage - entity_get_armor(state, defender));
+        defender.health = std::max(0, defender.health - damage);
+        entity_on_attack(state, attacker_id, defender_id);
+    }
+
+    // Cannon splash damage, happens regardless of miss
+    if (attacker.type == ENTITY_CANNON) {
+        Rect splash_damage_rect = (Rect) {
+            .x = hit_position.x - TILE_SIZE,
+            .y = hit_position.y - TILE_SIZE,
+            .w = TILE_SIZE * 2,
+            .h = TILE_SIZE * 2
+        };
+        const int splash_damage = attacker_data.unit_data.damage / 2;
+
+        for (uint32_t entity_index = 0; entity_index < state.entities.size(); entity_index++) {
+            Entity& entity = state.entities[entity_index];
+            if (entity_is_misc(entity.type) ||
+                    !entity_is_selectable(entity) ||
+                    entity_get_data(entity.type).cell_layer == CELL_LAYER_SKY) {
+                continue;
+            }
+
+            Rect entity_rect = entity_get_rect(entity);
+            if (entity_rect.intersects(splash_damage_rect)) {
+                int damage = std::max(1, splash_damage - entity_get_armor(state, entity));
+                entity.health = std::max(0, entity.health - damage);
+                entity_on_attack(state, attacker_id, state.entities.get_id_of(entity_index));
+            }
+        }
+    }
+}
+
+bool entity_is_soldier_attacking_with_bayonets(const Entity& entity) {
+    return entity.type == ENTITY_SOLDIER && entity.mode == MODE_UNIT_ATTACK_WINDUP;
+}
+
+int entity_get_accuracy_against_defender(const MatchState& state, const Entity& attacker, const Entity& defender, const EntityData& attacker_data, const EntityData& defender_data) {
+    if (defender.type == ENTITY_LANDMINE && defender.mode == MODE_MINE_PRIME) {
+        return 0;
+    }
+
+    int accuracy = attacker_data.unit_data.accuracy;
+    if (entity_is_soldier_attacking_with_bayonets(attacker) || entity_is_building(defender.type)) {
+        accuracy = 100;
+    }
+
+    if (entity_get_elevation(attacker, state.map) < entity_get_elevation(defender, state.map)) {
+        accuracy -= accuracy / 2;
+    }
+    if (attacker.garrison_id != ID_NULL && state.entities.get_by_id(attacker.garrison_id).type == ENTITY_WAGON) {
+        accuracy -= 15;
+    }
+    if (defender.mode == MODE_UNIT_MOVE) {
+        accuracy -= defender_data.unit_data.evasion;
+    }
+
+    return std::max(accuracy, 0);
+}
+
+void entity_on_attack(MatchState& state, EntityId attacker_id, EntityId defender_id) {
+    const Entity& attacker = state.entities.get_by_id(attacker_id);
+    Entity& defender = state.entities.get_by_id(defender_id);
+    const EntityData& defender_data = entity_get_data(defender.type);
+
+    // Alerts / taking damage flicker
+    if (attacker.player_id != defender.player_id) {
+        if (defender.taking_damage_counter == 0) {
+        }
+    }
+
+    // Entity killed event (for achievements)
+    if (defender.health == 0) {
+        state.events.push({
+            .type = MATCH_EVENT_ENTITY_KILLED,
+            .entity_killed = {
+                .attacker_id = attacker_id,
+                .defender_id = defender_id
+            }
+        });
+    }
+
+    entity_on_damage_taken(defender);
+
+    // Make defender attack back
+    if (entity_is_unit(defender.type) && defender.mode == MODE_UNIT_IDLE &&
+            defender.target.type == TARGET_NONE && defender_data.unit_data.damage != 0 &&
+            !(defender.type == ENTITY_DETECTIVE && entity_check_flag(defender, ENTITY_FLAG_INVISIBLE)) &&
+            defender.player_id != attacker.player_id && entity_is_visible_to_player(state, attacker, defender.player_id)) {
+        defender.target = target_attack_entity(attacker_id);
+    }
+}
+
+uint32_t entity_get_garrisoned_occupancy(const MatchState& state, const Entity& entity) {
+    uint32_t occupancy = 0;
+    for (uint32_t garrisoned_units_index = 0; garrisoned_units_index < entity.garrisoned_units.size(); garrisoned_units_index++) {
+        EntityId entity_id = entity.garrisoned_units[garrisoned_units_index];
+        occupancy += entity_get_data(state.entities.get_by_id(entity_id).type).garrison_size;
+    }
+    return occupancy;
+}
+
+void entity_unload_unit(MatchState& state, Entity& carrier, EntityId garrisoned_unit_id) {
+    const EntityData& carrier_data = entity_get_data(carrier.type);
+    uint32_t index = 0;
+    while (index < carrier.garrisoned_units.size()) {
+        if (garrisoned_unit_id == ENTITY_UNLOAD_ALL || carrier.garrisoned_units[index] == garrisoned_unit_id) {
+            Entity& garrisoned_unit = state.entities.get_by_id(carrier.garrisoned_units[index]);
+            const EntityData& garrisoned_unit_data = entity_get_data(garrisoned_unit.type);
+
+            // Find the exit cell
+            ivec2 exit_cell = map_get_exit_cell(state.map, CELL_LAYER_GROUND, carrier.cell, carrier_data.cell_size, garrisoned_unit_data.cell_size, carrier.cell + ivec2(0, carrier_data.cell_size), 0);
+            if (exit_cell.x == -1) {
+                if (entity_is_building(carrier.type)) {
+                }
+                return;
+            }
+
+            // Place the unit in the world
+            garrisoned_unit.cell = exit_cell;
+            garrisoned_unit.position = entity_get_target_position(garrisoned_unit);
+            map_set_cell_rect(state.map, CELL_LAYER_GROUND, garrisoned_unit.cell, garrisoned_unit_data.cell_size, (Cell) {
+                .type = CELL_UNIT, .id = carrier.garrisoned_units[index]
+            });
+            match_fog_update(state, state.players[garrisoned_unit.player_id].team, garrisoned_unit.cell, garrisoned_unit_data.cell_size, garrisoned_unit_data.sight, entity_has_detection(state, garrisoned_unit), garrisoned_unit_data.cell_layer, true);
+            garrisoned_unit.mode = MODE_UNIT_IDLE;
+            garrisoned_unit.target = target_none();
+            garrisoned_unit.garrison_id = ID_NULL;
+            garrisoned_unit.goldmine_id = ID_NULL;
+
+
+            // Remove the unit from the garrisoned units list
+            // Choosing to use remove_at_ordered for this so that it looks good in the UI, and because there's only 4 elements anyways
+            carrier.garrisoned_units.remove_at_ordered(index);
+        } else {
+            index++;
+        }
+    }
+}
+
+void entity_release_garrisoned_units_on_death(MatchState& state, Entity& entity) {
+    const EntityData& entity_data = entity_get_data(entity.type);
+    for (uint32_t garrisoned_units_index = 0; garrisoned_units_index < entity.garrisoned_units.size(); garrisoned_units_index++) {
+        EntityId garrisoned_unit_id = entity.garrisoned_units[garrisoned_units_index];
+        Entity& garrisoned_unit = state.entities.get_by_id(garrisoned_unit_id);
+        const EntityData& garrisoned_unit_data = entity_get_data(garrisoned_unit.type);
+        // place garrisoned units inside former-self
+        bool unit_is_placed = false;
+        for (int x = entity.cell.x; x < entity.cell.x + entity_data.cell_size; x++) {
+            for (int y = entity.cell.y; y < entity.cell.y + entity_data.cell_size; y++) {
+                if (!map_is_cell_rect_occupied(state.map, CELL_LAYER_GROUND, ivec2(x, y), garrisoned_unit_data.cell_size)) {
+                    garrisoned_unit.cell = ivec2(x, y);
+                    garrisoned_unit.position = entity_get_target_position(garrisoned_unit);
+                    garrisoned_unit.garrison_id = ID_NULL;
+                    garrisoned_unit.mode = MODE_UNIT_IDLE;
+                    garrisoned_unit.target = target_none();
+                    map_set_cell_rect(state.map, CELL_LAYER_GROUND, garrisoned_unit.cell, garrisoned_unit_data.cell_size, (Cell) {
+                        .type = CELL_UNIT, .id = garrisoned_unit_id
+                    });
+                    match_fog_update(state, state.players[garrisoned_unit.player_id].team, garrisoned_unit.cell, garrisoned_unit_data.cell_size, garrisoned_unit_data.sight, entity_has_detection(state, garrisoned_unit), garrisoned_unit_data.cell_layer, true);
+
+                    unit_is_placed = true;
+                    break;
+                }
+            }
+            if (unit_is_placed) {
+                break;
+            }
+        }
+
+        if (!unit_is_placed) {
+        }
+    }
+}
+
+void entity_explode(MatchState& state, EntityId entity_id) {
+    Entity& entity = state.entities.get_by_id(entity_id);
+    const EntityData& entity_data = entity_get_data(entity.type);
+
+    // Apply damage
+    Rect explosion_rect = (Rect) {
+        .x = (entity.cell.x - 1) * TILE_SIZE,
+        .y = (entity.cell.y - 1) * TILE_SIZE,
+        .w = TILE_SIZE * 3,
+        .h = TILE_SIZE * 3
+    };
+    int explosion_damage = entity.type == ENTITY_SAPPER ? entity_data.unit_data.damage : MINE_EXPLOSION_DAMAGE;
+    for (uint32_t defender_index = 0; defender_index < state.entities.size(); defender_index++) {
+        if (defender_index == state.entities.get_index_of(entity_id)) {
+            continue;
+        }
+        Entity& defender = state.entities[defender_index];
+        if (entity_is_misc(defender.type) ||
+                !entity_is_selectable(defender) ||
+                entity_get_data(defender.type).cell_layer == CELL_LAYER_SKY) {
+            continue;
+        }
+
+        Rect defender_rect = entity_get_rect(defender);
+        if (explosion_rect.intersects(defender_rect)) {
+            defender.health = std::max(defender.health - explosion_damage, 0);
+            entity_on_attack(state, entity_id, state.entities.get_id_of(defender_index));
+        }
+    }
+
+    // Kill the entity
+    entity.health = 0;
+    if (entity.type == ENTITY_SAPPER) {
+        entity.target = target_none();
+        entity.mode = MODE_UNIT_DEATH_FADE;
+        entity.animation = animation_create(ANIMATION_UNIT_DEATH_FADE);
+        map_set_cell_rect(state.map, CELL_LAYER_GROUND, entity.cell, entity_data.cell_size, (Cell) {
+            .type = CELL_EMPTY, .id = ID_NULL
+        });
+    } else {
+        entity.mode = MODE_BUILDING_DESTROYED;
+        entity.timer = BUILDING_FADE_DURATION;
+        map_set_cell(state.map, CELL_LAYER_UNDERGROUND, entity.cell, (Cell) { .type = CELL_EMPTY, .id = ID_NULL });
+    }
+
+    // Create particle
+    state.particles.push_back((Particle) {
+        .layer = PARTICLE_LAYER_GROUND,
+        .sprite = SPRITE_PARTICLE_EXPLOSION,
+        .animation = animation_create(ANIMATION_PARTICLE_EXPLOSION),
+        .vframe = 0,
+        .position = entity.type == ENTITY_SAPPER ? entity.position.to_ivec2() : cell_center(entity.cell).to_ivec2()
+    });
+}
+
+bool entity_should_die(const Entity& entity) {
+    if (entity.health != 0) {
+        return false;
+    }
+
+    if (entity_is_unit(entity.type)) {
+        if (entity.mode == MODE_UNIT_DEATH || entity.mode == MODE_UNIT_DEATH_FADE || entity.mode == MODE_UNIT_BALLOON_DEATH_START || entity.mode == MODE_UNIT_BALLOON_DEATH) {
+            return false;
+        }
+        if (entity.garrison_id != ID_NULL) {
+            return false;
+        }
+
+        return true;
+    } else if (entity_is_building(entity.type)) {
+        return entity.mode != MODE_BUILDING_DESTROYED;
+    }
+
+    return false;
+}
+
+void entity_on_damage_taken(Entity& entity) {
+    entity.taking_damage_counter = 3;
+    if (entity.taking_damage_timer == 0) {
+        entity.taking_damage_timer = UNIT_TAKING_DAMAGE_FLICKER_DURATION;
+    }
+
+    // Health regen timer
+    if (entity_is_unit(entity.type)) {
+        entity.health_regen_timer = UNIT_HEALTH_REGEN_DURATION + UNIT_HEALTH_REGEN_DELAY;
+    }
+}
+
+void entity_stop_building(MatchState& state, EntityId entity_id) {
+    Entity& entity = state.entities.get_by_id(entity_id);
+    const EntityData& entity_data = entity_get_data(entity.type);
+
+    int building_size = entity_get_data(entity.target.build.building_type).cell_size;
+    ivec2 exit_cell = entity.target.build.building_cell + ivec2(-1, 0);
+    ivec2 search_corners[4] = {
+        entity.target.build.building_cell + ivec2(-1, building_size),
+        entity.target.build.building_cell + ivec2(building_size, building_size),
+        entity.target.build.building_cell + ivec2(building_size, -1),
+        entity.target.build.building_cell + ivec2(-1, -1)
+    };
+    const Direction search_directions[4] = { DIRECTION_SOUTH, DIRECTION_EAST, DIRECTION_NORTH, DIRECTION_WEST };
+    int search_index = 0;
+    while (!map_is_cell_in_bounds(state.map, exit_cell) || map_is_cell_rect_occupied(state.map, CELL_LAYER_GROUND, exit_cell, entity_data.cell_size)) {
+        exit_cell += DIRECTION_IVEC2[search_directions[search_index]];
+        if (exit_cell == search_corners[search_index]) {
+            search_index++;
+            if (search_index == 4) {
+                search_index = 0;
+                search_corners[0] += ivec2(-1, 1);
+                search_corners[1] += ivec2(1, 1);
+                search_corners[2] += ivec2(1, -1);
+                search_corners[3] += ivec2(-1, -1);
+            }
+        }
+    }
+
+    entity.cell = exit_cell;
+    entity.position = entity_get_target_position(entity);
+    entity.target = target_none();
+    entity.mode = MODE_UNIT_IDLE;
+    map_set_cell_rect(state.map, CELL_LAYER_GROUND, entity.cell, entity_data.cell_size, (Cell) {
+        .type = CELL_UNIT, .id = entity_id
+    });
+    match_fog_update(state, state.players[entity.player_id].team, entity.cell, entity_data.cell_size, entity_data.sight, entity_has_detection(state, entity), entity_data.cell_layer, true);
+}
+
+void entity_building_finish(MatchState& state, EntityId building_id) {
+    Entity& building = state.entities.get_by_id(building_id);
+
+    building.mode = MODE_BUILDING_FINISHED;
+
+    for (uint32_t entity_index = 0; entity_index < state.entities.size(); entity_index++) {
+        Entity& entity = state.entities[entity_index];
+
+        if (!entity_is_unit(entity.type)) {
+            continue;
+        }
+        if (!(entity.mode == MODE_UNIT_BUILD || entity.mode == MODE_UNIT_REPAIR|| entity.mode == MODE_UNIT_BUILD_ASSIST) || entity.target.id != building_id) {
+            continue;
+        }
+
+        if (entity.target.type == TARGET_BUILD) {
+            entity_stop_building(state, state.entities.get_id_of(entity_index));
+            // If the unit was unable to stop building, notify the user that the exit is blocked
+            if (entity.mode != MODE_UNIT_IDLE) {
+            }
+        } else {
+            entity.mode = MODE_UNIT_IDLE;
+        }
+
+        entity.target = building.type == ENTITY_HALL
+                            ? entity_target_nearest_goldmine(state, entity)
+                            : target_none();
+    }
+}
+
+void entity_building_enqueue(MatchState& state, Entity& building, BuildingQueueItem item) {
+    building.queue.push_back(item);
+    if (building.queue.size() == 1) {
+        if (entity_building_is_supply_blocked(state, building)) {
+            if (building.timer != BUILDING_QUEUE_BLOCKED) {
+                state.events.push({
+                    .type = MATCH_EVENT_SUPPLY_BLOCKED,
+                    .supply_blocked = {
+                        .player_id = building.player_id
+                    }
+                });
+            }
+            building.timer = BUILDING_QUEUE_BLOCKED;
+        } else {
+            building.timer = building_queue_item_duration(item);
+        }
+    }
+}
+
+void entity_building_dequeue(MatchState& state, Entity& building) {
+    building.queue.remove_at_ordered(0);
+    if (building.queue.empty()) {
+        building.timer = 0;
+    } else {
+        if (entity_building_is_supply_blocked(state, building)) {
+            if (building.timer != BUILDING_QUEUE_BLOCKED) {
+                state.events.push({
+                    .type = MATCH_EVENT_SUPPLY_BLOCKED,
+                    .supply_blocked = {
+                        .player_id = building.player_id
+                    }
+                });
+            }
+            building.timer = BUILDING_QUEUE_BLOCKED;
+        } else {
+            building.timer = building_queue_item_duration(building.queue[0]);
+        }
+    }
+}
+
+bool entity_building_is_supply_blocked(const MatchState& state, const Entity& building) {
+    const BuildingQueueItem& item = building.queue[0];
+    if (item.type == BUILDING_QUEUE_ITEM_UNIT) {
+        if (state.entities.is_full()) {
+            return true;
+        }
+        uint32_t required_population = match_get_player_population(state, building.player_id) + entity_get_data(item.unit_type).unit_data.population_cost;
+        if (match_get_player_max_population(state, building.player_id) < required_population) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// TARGET
+
+Target target_none() {
+    Target target;
+    target.type = TARGET_NONE;
+    target.id = ID_NULL;
+    target.cell = ivec2(-1, -1);
+    target.build.unit_cell = ivec2(-1, -1);
+    target.build.building_cell = ivec2(-1, -1);
+    target.build.building_type = ENTITY_TYPE_COUNT;
+    return target;
+}
+
+Target target_cell(ivec2 cell) {
+    Target target = target_none();
+    target.type = TARGET_CELL;
+    target.cell = cell;
+    return target;
+}
+
+Target target_entity(EntityId entity_id) {
+    Target target = target_none();
+    target.type = TARGET_ENTITY;
+    target.id = entity_id;
+    return target;
+}
+
+Target target_attack_cell(ivec2 cell) {
+    Target target = target_none();
+    target.type = TARGET_ATTACK_CELL;
+    target.cell = cell;
+    return target;
+}
+
+Target target_attack_entity(EntityId entity_id) {
+    Target target = target_none();
+    target.type = TARGET_ATTACK_ENTITY;
+    target.id = entity_id;
+    return target;
+}
+
+Target target_repair(EntityId entity_id) {
+    Target target = target_none();
+    target.type = TARGET_REPAIR;
+    target.id = entity_id;
+    return target;
+}
+
+Target target_unload(ivec2 cell) {
+    Target target = target_none();
+    target.type = TARGET_UNLOAD;
+    target.cell = cell;
+    return target;
+}
+
+Target target_molotov(ivec2 cell) {
+    Target target = target_none();
+    target.type = TARGET_MOLOTOV;
+    target.cell = cell;
+    return target;
+}
+
+Target target_build(TargetBuild target_build) {
+    Target target = target_none();
+    target.type = TARGET_BUILD;
+    target.build = target_build;
+    return target;
+}
+
+Target target_build_assist(EntityId entity_id) {
+    Target target = target_none();
+    target.type = TARGET_BUILD_ASSIST;
+    target.id = entity_id;
+    return target;
+}
+
+Target target_patrol(ivec2 cell_a, ivec2 cell_b) {
+    Target target = target_none();
+    target.type = TARGET_PATROL;
+    target.patrol.cell_a = cell_a;
+    target.patrol.cell_b = cell_b;
+    return target;
+}
+
+// BUILDING QUEUE
+
+uint32_t building_queue_item_duration(const BuildingQueueItem& item) {
+    switch (item.type) {
+        case BUILDING_QUEUE_ITEM_UNIT: {
+            return entity_get_data(item.unit_type).train_duration * 60;
+        }
+        case BUILDING_QUEUE_ITEM_UPGRADE: {
+            return upgrade_get_data(item.upgrade).research_duration * 60;
+        }
+    }
+}
+
+uint32_t building_queue_item_cost(const BuildingQueueItem& item) {
+    switch (item.type) {
+        case BUILDING_QUEUE_ITEM_UNIT: {
+            return entity_get_data(item.unit_type).gold_cost;
+        }
+        case BUILDING_QUEUE_ITEM_UPGRADE: {
+            return upgrade_get_data(item.upgrade).gold_cost;
+        }
+    }
+}
+
+uint32_t building_queue_population_cost(const BuildingQueueItem& item) {
+    switch (item.type) {
+        case BUILDING_QUEUE_ITEM_UNIT: {
+            return entity_get_data(item.unit_type).unit_data.population_cost;
+        }
+        default:
+            return 0;
+    }
+}
