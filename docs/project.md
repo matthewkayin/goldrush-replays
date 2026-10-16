@@ -91,7 +91,7 @@ The full analysis goes in a BLOB because only one match page ever reads it. Summ
 - No external services are needed. All state is in `data/goldrush.db`.
 
 ## Metrics (Release 1)
-The analyzer computes these for every player in the match. Time series are sampled every second (60 ticks).
+The analyzer computes these for every player in the match. Time series are sampled every second (60 ticks): sample *i* is the state at the end of second *i*, and the last sample is taken when the replay ends, even if that second is cut short.
 
 **Army units** are Cowboy, Bandit, Wagon, Jockey, Sapper, Pyro, Soldier, Cannon, Detective and Balloon (`ENTITY_COWBOY` through `ENTITY_BALLOON`). Miners, gold mines and buildings are not army.
 
@@ -102,7 +102,8 @@ The analyzer computes these for every player in the match. Time series are sampl
 | Population | `match_get_player_population` and max population, sampled |
 | Army population | Sum of `population_cost` over the player's living army units, sampled |
 | Army value | Sum of `gold_cost` over the player's living army units, sampled |
-| APM | Non-`NONE` inputs per minute. Each input is credited to the owner of its first referenced entity or building, looked up *before* the input is applied. Inputs whose entities can't be resolved are left uncredited. Reported as a per-minute series and a match average. |
+| Peak army | The highest sampled army population and army value |
+| APM | Non-`NONE` inputs per minute. Each input is credited to the owner of its first referenced entity or building, looked up *before* the input is applied. Inputs whose entities can't be resolved are left uncredited. Reported as a per-minute series (credited inputs in each minute of the replay; the last minute may be cut short) and a match average (credited inputs ÷ the minutes the player was in the match, up to `defeated_at_tick` or the end, rounded to 1 decimal). |
 | Build order | Ordered list of `ENTITY_PURCHASED` events: tick, player, entity type, plus cancellations |
 | Upgrade timings | `RESEARCH_PURCHASED`, `RESEARCH_COMPLETE` and `RESEARCH_CANCELLED` events with ticks |
 | Units made / lost | Counts by entity type, from `ENTITY_CREATED` and `ENTITY_KILLED` |
@@ -232,6 +233,7 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-16: Besides the bad signature, unknown version and truncation cases, the reader rejects a map type or map size out of range, a player with a mode other than inactive/active, an unterminated name, a color ≥ 4 or a team ≥ 4, an entry before the first turn, an unknown entry or input type, an input whose length is 0, over 1024 or different from its contents, a selection over 20 entities, a disconnect of a player id ≥ 4, and a replay with no turns.
 - 2026-10-16: The analyzer reports each player's `defeated_at_tick`, and the worker applies the win/loss rule using `uploader_slot`. The rule needs the uploader, which the analyzer never sees, so keeping it in the worker keeps the analyzer's output independent of who uploaded.
 - 2026-10-16: Defeat is found by checking `players[p].mode` after every tick, because the simulation never emits `PLAYER_DEFEATED`. `DISCONNECT` entries set `mode` to `DEFEATED` when their turn is applied, as the old backend did, so they're caught the same way.
+- 2026-10-16: Time series are sampled at the end of each second, plus a final sample when the replay ends. Peak army population and value are the highest sampled values, so they match the charts. The APM per-minute series holds raw counts per minute of the replay, and the APM average divides by the time the player was in the match, so a player who leaves early isn't penalized for the minutes after.
 - 2026-10-16: The simulation's event queue (`MATCH_MAX_EVENTS`) is raised from 32 to 1024 in the analyzer's copy, and the analyzer drains it after every input and every tick. The queue has no overflow check, so overflowing it would silently lose events. The analyzer fails the analysis if it ever finds more events than the capacity. Nothing in the simulation reads the queue, so the change doesn't affect the simulation, and it made no measurable difference to run time.
 
 ## Open questions

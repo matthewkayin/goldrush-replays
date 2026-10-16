@@ -74,6 +74,14 @@ Every change is marked `// ANALYZER: <reason>`. `.claude/hooks/format.sh` skips 
 
 **Verify:** `pnpm test`, plus a by-hand look at the curves for one replay (gold rises, then falls when spending, and APM is plausible).
 
+**Phase 4 notes (2026-10-16):**
+- Sample *i* is taken after tick `(i+1)*60 - 1`, plus one after the last tick, so each series has `ceil(duration_ticks / 60)` values. `apm_per_minute` has `ceil(duration_ticks / 3600)` values. Peaks come from the samples.
+- Every input in `test_loss` and `test_ffa` resolved to an owner (checked with a temporary counter, since removed).
+- The time series cost nothing measurable: `test_loss` is still 1.5 s and `test_victory_long` 41.4 s.
+- Expected analysis files grew to 150–480 KB each, because `dump(2)` puts every array value on its own line. The diff was additions only. The only changed lines were `defeated_at_tick` lines gaining a trailing comma.
+- `ANALYZER_VERSION` stays 1: no analysis has been stored yet.
+- `first_entity_id` ignores ids ≥ `ID_MAX`. The simulation itself indexes `id_to_index[id]` with input ids unchecked, so a crafted replay with such an id reads out of bounds there. The reader doesn't reject it yet.
+
 ## Phase 5: Events (build order, upgrades, kills, supply)
 - An entity table `owner[ID_MAX]`/`type[ID_MAX]`, seeded after spawn and updated on `ENTITY_CREATED`. Spawn events are cleared, so starting units don't count as built.
 - Events:

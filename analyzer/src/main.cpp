@@ -69,6 +69,27 @@ static Json header_json(const ReplayHeader &header) {
   };
 }
 
+static Json summary_json(const PlayerSummary &summary) {
+  return {
+      {"apm", summary.apm},
+      {"gold_mined_total", summary.gold_mined_total},
+      {"peak_army_population", summary.peak_army_population},
+      {"peak_army_value", summary.peak_army_value},
+  };
+}
+
+static Json series_json(const PlayerSeries &series) {
+  return {
+      {"gold", series.gold},
+      {"gold_mined", series.gold_mined},
+      {"population", series.population},
+      {"max_population", series.max_population},
+      {"army_population", series.army_population},
+      {"army_value", series.army_value},
+      {"apm_per_minute", series.apm_per_minute},
+  };
+}
+
 static Json analysis_json(const ReplayHeader &header,
                           const Analysis &analysis) {
   Json players = Json::array();
@@ -81,6 +102,8 @@ static Json analysis_json(const ReplayHeader &header,
     json["defeated_at_tick"] = player.defeated_at_tick.has_value()
                                    ? Json(*player.defeated_at_tick)
                                    : Json(nullptr);
+    json["summary"] = summary_json(player.summary);
+    json["series"] = series_json(player.series);
     players.push_back(json);
   }
   return {
@@ -88,6 +111,7 @@ static Json analysis_json(const ReplayHeader &header,
       {"replay_version", header.version},
       {"map_type", map_type_name(header.map_type)},
       {"duration_ticks", analysis.duration_ticks},
+      {"sample_interval_ticks", SAMPLE_INTERVAL_TICKS},
       {"players", players},
   };
 }
