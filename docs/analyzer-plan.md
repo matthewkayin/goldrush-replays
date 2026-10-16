@@ -62,7 +62,7 @@ Every change is marked `// ANALYZER: <reason>`. `.claude/hooks/format.sh` skips 
 **Phase 3 notes (2026-10-16):**
 - Baseline `analyze` times (Release, no metrics): `test_loss` 1.5 s, `test_ffa` 12.9 s, `test_team` 19.3 s, `test_victory_long` 41.5 s. Raising the event cap made no difference. A rough gprof points at the game's own code (`unordered_map<EntityType, EntityData>::at`, `std::function` in `MatchFindBestEntityParams`, `entity_target_nearest_enemy`).
 - Ticks run over `[0, turns*4)`. The old backend driver stopped one tick earlier (`turns*4 - 1`).
-- UBSan: `util/lcg.cpp` overflows a signed `int` on every call. Building the simulation with `-fwrapv` gives identical output on all four replays. Open: whether to add it.
+- UBSan: `util/lcg.cpp` overflows a signed `int` on every call. Building the simulation with `-fwrapv` gives identical output on all four replays. Not added: no further sanitizer work is planned (developer's call, 2026-10-16).
 - UBSan: `map.cpp:515` (`map_get_cell`) reads cell y = 160 on 160×160 maps (`test_ffa`, `test_team`). It lands in the next cell layer inside `Map`, which the game does too, so it's left alone.
 - An `-O0` sanitizer build is about 70× slower than Release (109 s for `test_loss`). Use `RelWithDebInfo` with the sanitizer flags instead.
 
@@ -95,6 +95,15 @@ Every change is marked `// ANALYZER: <reason>`. `.claude/hooks/format.sh` skips 
 - Docs: Metrics table updates (upgrade completion, the fire-death caveat, the supply-blocked definition), and the Decisions entries for these and for the 40-minute benchmark with its measured time. "Hour-long" is replaced throughout with the 40-minute `test_victory_long.rep`: the Analyzer section's first-milestone paragraph, the story acceptance criterion, the Test replays section, and the 2026-10-15 queue Decision note. Same for the CLAUDE.md test-replay list. If it runs well under a second, note that the queue can be revisited.
 
 **Verify:** `pnpm test`. Check by hand that the build order for `test_loss.rep` matches what happened in that game, and that kill counts are plausible against units lost. Run the ASan/UBSan build once more.
+
+**Phase 5 notes (2026-10-16):**
+- The ASan/UBSan rerun was dropped (developer's call: the simulation is well tested in gameplay).
+- `SUPPLY_BLOCKED` events miss blocks that start during an update (the per-tick check in `entity.cpp` sets `BUILDING_QUEUE_BLOCKED` without an event), so `test_loss` had a count of 0 with 847 blocked ticks. Both numbers now come from the per-tick building scan; the count is the number of blocked runs.
+- Supply blocked includes being at the 100 population cap with a unit queued. In `test_victory_long` stew sits at 100/100 from about minute 22, which gives 74163 blocked ticks.
+- `ENTITY_KILLED` only covers fights between players' entities; kills where either side has no player are dropped. Unit kills and losses agree (in `test_loss`, the bot's 45 kills are stew's 45 units lost, and stew's 18 are the bot's 18). No player loses more of a unit type than they built plus their starting units.
+- The entity table rejects ids ≥ `ID_MAX` from events with an error. That also silenced a GCC `-Wstringop-overflow` warning.
+- Timing with every metric: `test_loss` 1.5 s, `test_victory_long` 41.6 s (41.5 s with no metrics).
+- The expected-file diff was additions only, apart from `peak_army_value` lines gaining a trailing comma.
 
 ## Phase 6: Shared schema and the first TS test
 - `packages/shared/src/analyzer.ts`: `replayHeaderSchema` and `analysisSchema` (Zod, strict objects) and their inferred types, exported from `index.ts`.

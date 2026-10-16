@@ -52,7 +52,7 @@ docs/
 - Built with CMake. JSON output uses vendored nlohmann/json.
 - Tested by running it on replays in `analyzer/test_replays/` and comparing against expected JSON files.
 
-**Why both a synchronous step and a job queue:** the two commands do different amounts of work. Only the cheap header read happens during the request. Full simulation goes through the queue, because so far it has only been timed on a 70-second match. An hour-long match has about 50× the ticks and many more entities per tick, and we also add per-tick metric collection on top. The first analyzer milestone measures `analyze` on an hour-long replay. If that finishes in well under a second, we can revisit dropping the queue.
+**Why both a synchronous step and a job queue:** the two commands do different amounts of work. Only the cheap header read happens during the request. Full simulation goes through the queue, because so far it has only been timed on a 70-second match. A long match has many times the ticks and many more entities per tick, with per-tick metric collection on top. The first analyzer milestone measured `analyze` on the 41-minute `test_victory_long.rep`: it takes about 42 s (see Decisions), so the queue stays.
 
 ### Server (TypeScript)
 - Node 24 LTS, Fastify, Zod for request and response validation (through `fastify-type-provider-zod`), and pnpm workspaces.
@@ -104,11 +104,12 @@ The analyzer computes these for every player in the match. Time series are sampl
 | Army value | Sum of `gold_cost` over the player's living army units, sampled |
 | Peak army | The highest sampled army population and army value |
 | APM | Non-`NONE` inputs per minute. Each input is credited to the owner of its first referenced entity or building, looked up *before* the input is applied. Inputs whose entities can't be resolved are left uncredited. Reported as a per-minute series (credited inputs in each minute of the replay; the last minute may be cut short) and a match average (credited inputs ÷ the minutes the player was in the match, up to `defeated_at_tick` or the end, rounded to 1 decimal). |
-| Build order | Ordered list of `ENTITY_PURCHASED` events: tick, player, entity type, plus cancellations |
-| Upgrade timings | `RESEARCH_PURCHASED`, `RESEARCH_COMPLETE` and `RESEARCH_CANCELLED` events with ticks |
-| Units made / lost | Counts by entity type, from `ENTITY_CREATED` and `ENTITY_KILLED` |
-| Kill/death trades | `ENTITY_KILLED` events, grouped by attacker owner and defender owner and by entity type |
-| Supply blocked | Count of `SUPPLY_BLOCKED` events, and time spent blocked |
+| Build order | Ordered list of `ENTITY_PURCHASED` events (units and buildings): tick, player, entity type, plus `UNIT_CANCELLED` and `BUILDING_CANCELLED`. Landmines are placed with energy and emit no purchase, so they aren't in it. |
+| Upgrade timings | `RESEARCH_PURCHASED` and `RESEARCH_CANCELLED` events with ticks, plus completion, found when a bit appears in `players[p].upgrades` (the game never emits `RESEARCH_COMPLETE`) |
+| Units made / lost | Counts of units (miners and army) by type, from `ENTITY_CREATED` (starting units excluded) and `ENTITY_KILLED`. Deaths from fire emit no event and aren't counted. |
+| Buildings built | Buildings placed (`ENTITY_CREATED`) minus `BUILDING_CANCELLED`, excluding landmines and the starting hall |
+| Kill/death trades | `ENTITY_KILLED` events between players' entities (units and buildings): tick, attacker owner and type, defender owner and type. A player's `kills` count is the units of players on other teams that their entities killed. |
+| Supply blocked | Ticks in which at least one of the player's finished buildings has its queue blocked (`timer == BUILDING_QUEUE_BLOCKED`), and the number of separate blocked periods. This includes being at the 100 population cap with units queued. |
 | Result | The analyzer reports each player's `defeated_at_tick`: the first tick in which their `players[p].mode` is `DEFEATED`, from losing all buildings or entities or from a `DISCONNECT` entry, or null if they were still active when the replay ended. The worker turns these into win/loss with the rule below. |
 
 ### Win/loss rule
@@ -138,7 +139,7 @@ Acceptance criteria:
 - WHEN replay bytes are piped on stdin with no file argument THE SYSTEM SHALL read the replay from stdin
 - WHEN the input is truncated, has a bad signature or has an unknown replay version THE SYSTEM SHALL exit non-zero with a message on stderr
 - WHEN run on the replays in `analyzer/test_replays/` THE SYSTEM SHALL produce output that matches the saved expected JSON files
-- WHEN run on an hour-long replay THE SYSTEM SHALL complete, and its run time SHALL be recorded in the Decisions log
+- WHEN run on the 41-minute `test_victory_long.rep` THE SYSTEM SHALL complete, and its run time SHALL be recorded in the Decisions log
 
 ### Story: Create an account and sign in
 As a player, I want an account on the site, so that my uploaded replays are tied to me.
@@ -190,7 +191,6 @@ Acceptance criteria:
 
 The developer will provide more replays on request. Ask for them when a story needs one, for example:
 - a match where the uploader leaves early
-- an hour-long match, for the performance measurement in the Analyzer CLI story
 
 ## Later
 These are agreed but not part of Release 1. Build nothing for them yet, but the data model above is designed with them in mind.
@@ -219,7 +219,7 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-15: SQLite is the only datastore, so the project runs on a laptop with no services.
 - 2026-10-15: Replay files and analysis results are stored as SQLite BLOBs rather than as files, because they are small and BLOB reads at this size are faster than separate file I/O. They live in their own tables so metadata queries don't read them.
 - 2026-10-15: No ORM. Handwritten SQL through `better-sqlite3` and plain `.sql` migrations, for simplicity and performance.
-- 2026-10-15: The header is read synchronously during upload, and the full simulation runs through a job queue in SQLite, because hour-long matches have not been timed yet. Revisit once the hour-long replay is measured.
+- 2026-10-15: The header is read synchronously during upload, and the full simulation runs through a job queue in SQLite, because long matches had not been timed yet. (2026-10-16: the 41-minute replay takes about 42 s, so the queue stays.)
 - 2026-10-15: Summary stats go in SQL columns and the full time series goes in a gzipped JSON BLOB per match, because only the match page reads the full series and cross-match pages need queryable summaries.
 - 2026-10-15: Army units are Cowboy, Bandit, Wagon, Jockey, Sapper, Pyro, Soldier, Cannon, Detective and Balloon. Army is tracked both as population used and as gold value.
 - 2026-10-15: Site accounts are independent of Steam, because replays can come from LAN games.
@@ -235,6 +235,12 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-16: Defeat is found by checking `players[p].mode` after every tick, because the simulation never emits `PLAYER_DEFEATED`. `DISCONNECT` entries set `mode` to `DEFEATED` when their turn is applied, as the old backend did, so they're caught the same way.
 - 2026-10-16: Time series are sampled at the end of each second, plus a final sample when the replay ends. Peak army population and value are the highest sampled values, so they match the charts. The APM per-minute series holds raw counts per minute of the replay, and the APM average divides by the time the player was in the match, so a player who leaves early isn't penalized for the minutes after.
 - 2026-10-16: The simulation's event queue (`MATCH_MAX_EVENTS`) is raised from 32 to 1024 in the analyzer's copy, and the analyzer drains it after every input and every tick. The queue has no overflow check, so overflowing it would silently lose events. The analyzer fails the analysis if it ever finds more events than the capacity. Nothing in the simulation reads the queue, so the change doesn't affect the simulation, and it made no measurable difference to run time.
+- 2026-10-16: Measured on the 41-minute `test_victory_long.rep` (instead of an hour-long replay): `analyze` takes about 42 s with every Release 1 metric, against 41.5 s with no metrics, so the metrics cost almost nothing and the simulation itself is the cost. The job queue stays. An hour-long match should take about a minute, inside the worker's 120 s timeout.
+- 2026-10-16: Upgrade completion is found by diffing `players[p].upgrades` after every tick, because the game never emits `RESEARCH_COMPLETE`.
+- 2026-10-16: Units lost and kills come only from `ENTITY_KILLED`. Deaths from molotov fire or burning buildings emit no event, so they aren't counted. This is a known undercount.
+- 2026-10-16: Supply blocked is measured by checking every building after every tick, not from `SUPPLY_BLOCKED` events, because the game only emits that event when a queue changes, not when a building becomes blocked during an update (e.g. a house dies). The count is the number of separate blocked periods.
+- 2026-10-16: A player's `kills` and `units_lost` count units only, so they can be compared. Kills of allies don't count. The `kills` event list also has buildings. Landmines aren't buildings for `buildings_built`.
+- 2026-10-16: Output names for entity types and upgrades are snake_case ids defined in the analyzer (`cowboy`, `war_wagon`), not the game's display names.
 
 ## Open questions
 None at this time.

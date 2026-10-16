@@ -35,6 +35,17 @@ struct PlayerSummary {
   // The highest sampled values.
   uint32_t peak_army_population;
   uint32_t peak_army_value;
+  uint32_t units_built;
+  uint32_t units_lost;
+  // Units of players on other teams that this player's entities killed.
+  uint32_t kills;
+  // Buildings placed minus buildings cancelled. Landmines are not buildings.
+  uint32_t buildings_built;
+  uint32_t upgrades_completed;
+  // Ticks in which at least one of the player's buildings was supply blocked,
+  // and how many separate runs of such ticks there were.
+  uint32_t supply_blocked_count;
+  uint32_t supply_blocked_ticks;
 };
 
 struct PlayerAnalysis {
@@ -42,13 +53,53 @@ struct PlayerAnalysis {
   // disconnect. Empty if they were still active when the replay ended.
   std::optional<uint32_t> defeated_at_tick;
   PlayerSummary summary;
+  // Indexed by EntityType; only unit types are counted.
+  uint32_t units_built_by_type[ENTITY_TYPE_COUNT];
+  uint32_t units_lost_by_type[ENTITY_TYPE_COUNT];
   PlayerSeries series;
+};
+
+enum BuildAction { BUILD_PURCHASED, BUILD_CANCELLED };
+
+struct BuildOrderItem {
+  uint32_t tick;
+  uint8_t slot;
+  EntityType entity_type;
+  BuildAction action;
+};
+
+enum UpgradeAction { UPGRADE_PURCHASED, UPGRADE_CANCELLED, UPGRADE_COMPLETED };
+
+struct UpgradeItem {
+  uint32_t tick;
+  uint8_t slot;
+  // One UPGRADE_* bit.
+  uint32_t upgrade;
+  UpgradeAction action;
+};
+
+struct Kill {
+  uint32_t tick;
+  uint8_t attacker_slot;
+  EntityType attacker_type;
+  uint8_t defender_slot;
+  EntityType defender_type;
 };
 
 struct Analysis {
   uint32_t duration_ticks;
   PlayerAnalysis players[MAX_PLAYERS];
+  // Each list is in tick order.
+  std::vector<BuildOrderItem> build_order;
+  std::vector<UpgradeItem> upgrades;
+  std::vector<Kill> kills;
 };
 
 // Simulates the whole match from its inputs and observes it.
 Analysis analyze_replay(const Replay &replay);
+
+// Snake_case ids used in the analysis output, e.g. "cowboy", "war_wagon".
+const char *entity_type_name(EntityType type);
+const char *upgrade_name(uint32_t upgrade);
+const char *build_action_name(BuildAction action);
+const char *upgrade_action_name(UpgradeAction action);

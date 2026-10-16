@@ -75,7 +75,25 @@ static Json summary_json(const PlayerSummary &summary) {
       {"gold_mined_total", summary.gold_mined_total},
       {"peak_army_population", summary.peak_army_population},
       {"peak_army_value", summary.peak_army_value},
+      {"units_built", summary.units_built},
+      {"units_lost", summary.units_lost},
+      {"kills", summary.kills},
+      {"buildings_built", summary.buildings_built},
+      {"upgrades_completed", summary.upgrades_completed},
+      {"supply_blocked_count", summary.supply_blocked_count},
+      {"supply_blocked_ticks", summary.supply_blocked_ticks},
   };
+}
+
+// An object from unit type name to count, leaving out zero counts.
+static Json counts_by_type_json(const uint32_t (&counts)[ENTITY_TYPE_COUNT]) {
+  Json json = Json::object();
+  for (uint32_t type = 0; type < ENTITY_TYPE_COUNT; type++) {
+    if (counts[type] != 0) {
+      json[entity_type_name((EntityType)type)] = counts[type];
+    }
+  }
+  return json;
 }
 
 static Json series_json(const PlayerSeries &series) {
@@ -88,6 +106,46 @@ static Json series_json(const PlayerSeries &series) {
       {"army_value", series.army_value},
       {"apm_per_minute", series.apm_per_minute},
   };
+}
+
+static Json build_order_json(const std::vector<BuildOrderItem> &build_order) {
+  Json json = Json::array();
+  for (const BuildOrderItem &item : build_order) {
+    json.push_back({
+        {"tick", item.tick},
+        {"slot", item.slot},
+        {"entity", entity_type_name(item.entity_type)},
+        {"action", build_action_name(item.action)},
+    });
+  }
+  return json;
+}
+
+static Json upgrades_json(const std::vector<UpgradeItem> &upgrades) {
+  Json json = Json::array();
+  for (const UpgradeItem &item : upgrades) {
+    json.push_back({
+        {"tick", item.tick},
+        {"slot", item.slot},
+        {"upgrade", upgrade_name(item.upgrade)},
+        {"action", upgrade_action_name(item.action)},
+    });
+  }
+  return json;
+}
+
+static Json kills_json(const std::vector<Kill> &kills) {
+  Json json = Json::array();
+  for (const Kill &kill : kills) {
+    json.push_back({
+        {"tick", kill.tick},
+        {"attacker_slot", kill.attacker_slot},
+        {"attacker", entity_type_name(kill.attacker_type)},
+        {"defender_slot", kill.defender_slot},
+        {"defender", entity_type_name(kill.defender_type)},
+    });
+  }
+  return json;
 }
 
 static Json analysis_json(const ReplayHeader &header,
@@ -103,6 +161,9 @@ static Json analysis_json(const ReplayHeader &header,
                                    ? Json(*player.defeated_at_tick)
                                    : Json(nullptr);
     json["summary"] = summary_json(player.summary);
+    json["units_built_by_type"] =
+        counts_by_type_json(player.units_built_by_type);
+    json["units_lost_by_type"] = counts_by_type_json(player.units_lost_by_type);
     json["series"] = series_json(player.series);
     players.push_back(json);
   }
@@ -113,6 +174,9 @@ static Json analysis_json(const ReplayHeader &header,
       {"duration_ticks", analysis.duration_ticks},
       {"sample_interval_ticks", SAMPLE_INTERVAL_TICKS},
       {"players", players},
+      {"build_order", build_order_json(analysis.build_order)},
+      {"upgrades", upgrades_json(analysis.upgrades)},
+      {"kills", kills_json(analysis.kills)},
   };
 }
 

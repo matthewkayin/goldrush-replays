@@ -15,7 +15,23 @@
         "apm": 10.4,
         "gold_mined_total": 8725,
         "peak_army_population": 28,
-        "peak_army_value": 2800
+        "peak_army_value": 2800,
+        "units_built": 72,
+        "units_lost": 73,
+        "kills": 57,
+        "buildings_built": 14,
+        "upgrades_completed": 1,
+        "supply_blocked_count": 1,
+        "supply_blocked_ticks": 562
+      },
+      "units_built_by_type": {
+        "miner": 32,
+        "cowboy": 40
+      },
+      "units_lost_by_type": {
+        "miner": 34,
+        "cowboy": 38,
+        "wagon": 1
       },
       "series": {
         "gold": [
@@ -6621,7 +6637,28 @@
         "apm": 9.1,
         "gold_mined_total": 13720,
         "peak_army_population": 56,
-        "peak_army_value": 8900
+        "peak_army_value": 8900,
+        "units_built": 71,
+        "units_lost": 7,
+        "kills": 14,
+        "buildings_built": 16,
+        "upgrades_completed": 1,
+        "supply_blocked_count": 3,
+        "supply_blocked_ticks": 916
+      },
+      "units_built_by_type": {
+        "miner": 15,
+        "cowboy": 8,
+        "bandit": 3,
+        "soldier": 37,
+        "cannon": 4,
+        "balloon": 4
+      },
+      "units_lost_by_type": {
+        "cowboy": 2,
+        "bandit": 3,
+        "wagon": 1,
+        "soldier": 1
       },
       "series": {
         "gold": [
@@ -13227,7 +13264,25 @@
         "apm": 16.9,
         "gold_mined_total": 12765,
         "peak_army_population": 81,
-        "peak_army_value": 8175
+        "peak_army_value": 8175,
+        "units_built": 111,
+        "units_lost": 54,
+        "kills": 76,
+        "buildings_built": 14,
+        "upgrades_completed": 1,
+        "supply_blocked_count": 4,
+        "supply_blocked_ticks": 1682
+      },
+      "units_built_by_type": {
+        "miner": 15,
+        "cowboy": 47,
+        "bandit": 40,
+        "pyro": 9
+      },
+      "units_lost_by_type": {
+        "cowboy": 19,
+        "bandit": 32,
+        "pyro": 3
       },
       "series": {
         "gold": [
@@ -19833,7 +19888,30 @@
         "apm": 12.4,
         "gold_mined_total": 11585,
         "peak_army_population": 48,
-        "peak_army_value": 6450
+        "peak_army_value": 6450,
+        "units_built": 69,
+        "units_lost": 46,
+        "kills": 33,
+        "buildings_built": 18,
+        "upgrades_completed": 1,
+        "supply_blocked_count": 2,
+        "supply_blocked_ticks": 1640
+      },
+      "units_built_by_type": {
+        "miner": 21,
+        "cowboy": 16,
+        "bandit": 6,
+        "soldier": 22,
+        "cannon": 2,
+        "balloon": 2
+      },
+      "units_lost_by_type": {
+        "miner": 15,
+        "cowboy": 12,
+        "bandit": 6,
+        "wagon": 1,
+        "soldier": 10,
+        "balloon": 2
       },
       "series": {
         "gold": [
@@ -26428,6 +26506,3899 @@
           1
         ]
       }
+    }
+  ],
+  "build_order": [
+    {
+      "tick": 60,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 60,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 60,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 228,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 1260,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 1260,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 1260,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 1428,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 2300,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 2460,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 2460,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 2460,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 3660,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 3660,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 3660,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 3724,
+      "slot": 0,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 3916,
+      "slot": 1,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 3916,
+      "slot": 2,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 3980,
+      "slot": 3,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 4860,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 4860,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 4860,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 5400,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 6092,
+      "slot": 2,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 6108,
+      "slot": 3,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 6556,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 6588,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 7708,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 8028,
+      "slot": 1,
+      "entity": "hall",
+      "action": "purchased"
+    },
+    {
+      "tick": 8444,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 8940,
+      "slot": 0,
+      "entity": "hall",
+      "action": "purchased"
+    },
+    {
+      "tick": 9304,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 9452,
+      "slot": 3,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 9468,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 9484,
+      "slot": 3,
+      "entity": "bunker",
+      "action": "purchased"
+    },
+    {
+      "tick": 9516,
+      "slot": 2,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 9532,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 9740,
+      "slot": 1,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 9916,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 10188,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 10652,
+      "slot": 0,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 10732,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 10988,
+      "slot": 3,
+      "entity": "miner",
+      "action": "cancelled"
+    },
+    {
+      "tick": 11004,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 11104,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 11468,
+      "slot": 1,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 11900,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 11932,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 12464,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 12508,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 12828,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 12876,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 13164,
+      "slot": 1,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 13948,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 14020,
+      "slot": 0,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 14028,
+      "slot": 2,
+      "entity": "hall",
+      "action": "purchased"
+    },
+    {
+      "tick": 14044,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 14092,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 14256,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 14348,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 14364,
+      "slot": 1,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 14700,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 15052,
+      "slot": 3,
+      "entity": "hall",
+      "action": "purchased"
+    },
+    {
+      "tick": 15068,
+      "slot": 1,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 15084,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 15256,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 15404,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 15548,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 15804,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 15820,
+      "slot": 1,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 16016,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 16072,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 16204,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 16572,
+      "slot": 1,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 16572,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 16668,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 16796,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 17212,
+      "slot": 1,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 17308,
+      "slot": 3,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 17360,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 17708,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 17740,
+      "slot": 1,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 17868,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 18020,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 18076,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 18300,
+      "slot": 1,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 18300,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 18436,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 18652,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 18748,
+      "slot": 1,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 18908,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 19068,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 19324,
+      "slot": 1,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 19580,
+      "slot": 3,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 19788,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 19804,
+      "slot": 1,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 20156,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 20252,
+      "slot": 1,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 20364,
+      "slot": 2,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 20528,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 20536,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 20540,
+      "slot": 1,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 20684,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "cancelled"
+    },
+    {
+      "tick": 20716,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 20732,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 20988,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 21132,
+      "slot": 3,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 21292,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 21512,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 21548,
+      "slot": 1,
+      "entity": "smith",
+      "action": "purchased"
+    },
+    {
+      "tick": 21580,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 21916,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 21932,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 21996,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 22284,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 22284,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 22316,
+      "slot": 1,
+      "entity": "miner",
+      "action": "cancelled"
+    },
+    {
+      "tick": 22892,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 22956,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 23196,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 23436,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 23596,
+      "slot": 3,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 23692,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 23780,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 23980,
+      "slot": 1,
+      "entity": "barracks",
+      "action": "purchased"
+    },
+    {
+      "tick": 24172,
+      "slot": 2,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 24396,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 24508,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 24716,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 25004,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 25068,
+      "slot": 1,
+      "entity": "barracks",
+      "action": "purchased"
+    },
+    {
+      "tick": 25068,
+      "slot": 3,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 25260,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 25424,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 25468,
+      "slot": 1,
+      "entity": "miner",
+      "action": "cancelled"
+    },
+    {
+      "tick": 25484,
+      "slot": 1,
+      "entity": "barracks",
+      "action": "purchased"
+    },
+    {
+      "tick": 25500,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 25532,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 25596,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 25948,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 26028,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 26132,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 26268,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 26364,
+      "slot": 3,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 26732,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 26796,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 26920,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 27148,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 27164,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 27468,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 27804,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 27804,
+      "slot": 3,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 28044,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 28236,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 28272,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 28492,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 28508,
+      "slot": 1,
+      "entity": "barracks",
+      "action": "purchased"
+    },
+    {
+      "tick": 28524,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 28524,
+      "slot": 2,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 28716,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 28796,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 28828,
+      "slot": 3,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 28904,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 29148,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 29244,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 29484,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 29560,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 29564,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 29868,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 29900,
+      "slot": 3,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 30316,
+      "slot": 3,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 30332,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 30444,
+      "slot": 2,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 30524,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 30604,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 30724,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 30828,
+      "slot": 3,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 31116,
+      "slot": 3,
+      "entity": "miner",
+      "action": "cancelled"
+    },
+    {
+      "tick": 31420,
+      "slot": 3,
+      "entity": "smith",
+      "action": "purchased"
+    },
+    {
+      "tick": 31580,
+      "slot": 2,
+      "entity": "workshop",
+      "action": "purchased"
+    },
+    {
+      "tick": 31644,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 31692,
+      "slot": 0,
+      "entity": "bunker",
+      "action": "purchased"
+    },
+    {
+      "tick": 31772,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 31772,
+      "slot": 3,
+      "entity": "miner",
+      "action": "cancelled"
+    },
+    {
+      "tick": 31852,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 31868,
+      "slot": 1,
+      "entity": "barracks",
+      "action": "purchased"
+    },
+    {
+      "tick": 31884,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 32076,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 32140,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 32396,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 32636,
+      "slot": 3,
+      "entity": "workshop",
+      "action": "purchased"
+    },
+    {
+      "tick": 32684,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 32764,
+      "slot": 1,
+      "entity": "workshop",
+      "action": "purchased"
+    },
+    {
+      "tick": 32828,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 33276,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 33284,
+      "slot": 0,
+      "entity": "bunker",
+      "action": "purchased"
+    },
+    {
+      "tick": 33416,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 33436,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 33596,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 33660,
+      "slot": 2,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 33772,
+      "slot": 3,
+      "entity": "miner",
+      "action": "cancelled"
+    },
+    {
+      "tick": 33836,
+      "slot": 3,
+      "entity": "barracks",
+      "action": "purchased"
+    },
+    {
+      "tick": 33852,
+      "slot": 2,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 34076,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 34092,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 34172,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 34260,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 34476,
+      "slot": 1,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 34476,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 34572,
+      "slot": 2,
+      "entity": "miner",
+      "action": "cancelled"
+    },
+    {
+      "tick": 34588,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 34652,
+      "slot": 1,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 34900,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 35356,
+      "slot": 1,
+      "entity": "miner",
+      "action": "cancelled"
+    },
+    {
+      "tick": 35372,
+      "slot": 2,
+      "entity": "pyro",
+      "action": "purchased"
+    },
+    {
+      "tick": 35484,
+      "slot": 1,
+      "entity": "cannon",
+      "action": "purchased"
+    },
+    {
+      "tick": 35740,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 36124,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 36156,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 36428,
+      "slot": 3,
+      "entity": "barracks",
+      "action": "purchased"
+    },
+    {
+      "tick": 36508,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 36876,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 36924,
+      "slot": 1,
+      "entity": "balloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 37580,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 37580,
+      "slot": 3,
+      "entity": "barracks",
+      "action": "purchased"
+    },
+    {
+      "tick": 37956,
+      "slot": 0,
+      "entity": "hall",
+      "action": "purchased"
+    },
+    {
+      "tick": 38124,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 38252,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 38268,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 38396,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 38780,
+      "slot": 2,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 38908,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 38936,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 39036,
+      "slot": 3,
+      "entity": "balloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 39052,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 39340,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 39508,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 39580,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 39724,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 39916,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 40092,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 40220,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 40260,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 40348,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 40476,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 40732,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 40892,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 41244,
+      "slot": 2,
+      "entity": "pyro",
+      "action": "purchased"
+    },
+    {
+      "tick": 41276,
+      "slot": 1,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 41408,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 41500,
+      "slot": 3,
+      "entity": "barracks",
+      "action": "purchased"
+    },
+    {
+      "tick": 41740,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 41964,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 42044,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 42136,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 42172,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 42188,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 42460,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 42828,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 42844,
+      "slot": 2,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 42888,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 42908,
+      "slot": 1,
+      "entity": "cannon",
+      "action": "purchased"
+    },
+    {
+      "tick": 43372,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 43500,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 43620,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 43628,
+      "slot": 2,
+      "entity": "pyro",
+      "action": "purchased"
+    },
+    {
+      "tick": 43660,
+      "slot": 1,
+      "entity": "balloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 43868,
+      "slot": 3,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 43900,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 44284,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 44316,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 44440,
+      "slot": 0,
+      "entity": "smith",
+      "action": "purchased"
+    },
+    {
+      "tick": 44540,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 44664,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 44684,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 44904,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 44988,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 45052,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 45196,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 45644,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 45820,
+      "slot": 2,
+      "entity": "pyro",
+      "action": "purchased"
+    },
+    {
+      "tick": 46000,
+      "slot": 0,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 46140,
+      "slot": 3,
+      "entity": "cannon",
+      "action": "purchased"
+    },
+    {
+      "tick": 46168,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 46204,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 46212,
+      "slot": 0,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 46300,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 46476,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 46764,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 46812,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 46972,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 47036,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 47420,
+      "slot": 2,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 47468,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 47620,
+      "slot": 0,
+      "entity": "miner",
+      "action": "cancelled"
+    },
+    {
+      "tick": 47644,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 47880,
+      "slot": 0,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 48028,
+      "slot": 1,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 48100,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 48156,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 48172,
+      "slot": 2,
+      "entity": "pyro",
+      "action": "purchased"
+    },
+    {
+      "tick": 48476,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 48644,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 48668,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 48796,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 48844,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 49228,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 49340,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 49468,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 49612,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 49792,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 49832,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 50124,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 50148,
+      "slot": 0,
+      "entity": "saloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 50300,
+      "slot": 1,
+      "entity": "cannon",
+      "action": "purchased"
+    },
+    {
+      "tick": 50320,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 50364,
+      "slot": 2,
+      "entity": "pyro",
+      "action": "purchased"
+    },
+    {
+      "tick": 50508,
+      "slot": 3,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 50748,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 51020,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 51052,
+      "slot": 1,
+      "entity": "balloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 51196,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 51308,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 51532,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 51580,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 51692,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 51836,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 51896,
+      "slot": 0,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 51964,
+      "slot": 2,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 52364,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 52716,
+      "slot": 2,
+      "entity": "pyro",
+      "action": "purchased"
+    },
+    {
+      "tick": 52780,
+      "slot": 3,
+      "entity": "cannon",
+      "action": "purchased"
+    },
+    {
+      "tick": 53020,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 53020,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 53084,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 53092,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 53224,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 53388,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 53548,
+      "slot": 3,
+      "entity": "balloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 53572,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 53612,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 53708,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 53772,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 53848,
+      "slot": 0,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 54156,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 54220,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 54348,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 54876,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 54908,
+      "slot": 2,
+      "entity": "pyro",
+      "action": "purchased"
+    },
+    {
+      "tick": 55036,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 55056,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 55064,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 55292,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 55532,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 55564,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 55676,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 55852,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 56044,
+      "slot": 0,
+      "entity": "workshop",
+      "action": "purchased"
+    },
+    {
+      "tick": 56124,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 56204,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 56272,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 56364,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 56624,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 56660,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 56860,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 56876,
+      "slot": 2,
+      "entity": "pyro",
+      "action": "purchased"
+    },
+    {
+      "tick": 57276,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 57308,
+      "slot": 1,
+      "entity": "cannon",
+      "action": "purchased"
+    },
+    {
+      "tick": 57516,
+      "slot": 3,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 57660,
+      "slot": 1,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 57660,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 58060,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 58204,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 58284,
+      "slot": 3,
+      "entity": "house",
+      "action": "purchased"
+    },
+    {
+      "tick": 58428,
+      "slot": 1,
+      "entity": "balloon",
+      "action": "purchased"
+    },
+    {
+      "tick": 58428,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 58492,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 58812,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 59028,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 59084,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 59096,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 59196,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 59236,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 59256,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 59404,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 59564,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 59692,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 59756,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 59980,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 60472,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 60476,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 60604,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 60620,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 60628,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 60636,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 60700,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 61304,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 61308,
+      "slot": 0,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 61452,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 61644,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 61964,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 62220,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 62396,
+      "slot": 3,
+      "entity": "miner",
+      "action": "purchased"
+    },
+    {
+      "tick": 62828,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 63324,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    },
+    {
+      "tick": 63356,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 63916,
+      "slot": 2,
+      "entity": "bandit",
+      "action": "purchased"
+    },
+    {
+      "tick": 64668,
+      "slot": 2,
+      "entity": "cowboy",
+      "action": "purchased"
+    },
+    {
+      "tick": 64828,
+      "slot": 1,
+      "entity": "soldier",
+      "action": "purchased"
+    }
+  ],
+  "upgrades": [
+    {
+      "tick": 23996,
+      "slot": 1,
+      "upgrade": "bayonets",
+      "action": "purchased"
+    },
+    {
+      "tick": 26995,
+      "slot": 1,
+      "upgrade": "bayonets",
+      "action": "completed"
+    },
+    {
+      "tick": 35276,
+      "slot": 3,
+      "upgrade": "bayonets",
+      "action": "purchased"
+    },
+    {
+      "tick": 37820,
+      "slot": 2,
+      "upgrade": "landmines",
+      "action": "purchased"
+    },
+    {
+      "tick": 38275,
+      "slot": 3,
+      "upgrade": "bayonets",
+      "action": "completed"
+    },
+    {
+      "tick": 40819,
+      "slot": 2,
+      "upgrade": "landmines",
+      "action": "completed"
+    },
+    {
+      "tick": 47252,
+      "slot": 0,
+      "upgrade": "iron_sights",
+      "action": "purchased"
+    },
+    {
+      "tick": 50851,
+      "slot": 0,
+      "upgrade": "iron_sights",
+      "action": "completed"
+    },
+    {
+      "tick": 59992,
+      "slot": 0,
+      "upgrade": "landmines",
+      "action": "purchased"
+    }
+  ],
+  "kills": [
+    {
+      "tick": 16529,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "wagon"
+    },
+    {
+      "tick": 16859,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 16982,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 17067,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 17119,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 17227,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 17353,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 17493,
+      "attacker_slot": 0,
+      "attacker": "miner",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 17549,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 17751,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 17761,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 17774,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 17793,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 19291,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 19432,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 19558,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 19646,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 20161,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 20408,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 20833,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 20967,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 21291,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 24968,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 51599,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 1,
+      "defender": "bandit"
+    },
+    {
+      "tick": 51671,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 1,
+      "defender": "bandit"
+    },
+    {
+      "tick": 51764,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 1,
+      "defender": "wagon"
+    },
+    {
+      "tick": 53151,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 3,
+      "defender": "wagon"
+    },
+    {
+      "tick": 58035,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 58283,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 58383,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "soldier"
+    },
+    {
+      "tick": 58391,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 3,
+      "defender": "soldier"
+    },
+    {
+      "tick": 58595,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 58665,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 3,
+      "defender": "soldier"
+    },
+    {
+      "tick": 58750,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 3,
+      "defender": "soldier"
+    },
+    {
+      "tick": 58929,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "soldier"
+    },
+    {
+      "tick": 58975,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 3,
+      "defender": "soldier"
+    },
+    {
+      "tick": 59022,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 3,
+      "defender": "soldier"
+    },
+    {
+      "tick": 59066,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 59239,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "soldier"
+    },
+    {
+      "tick": 59355,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 59417,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 59438,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 59473,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 59535,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 59589,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 59600,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "soldier"
+    },
+    {
+      "tick": 59633,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 59684,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 59753,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 59788,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 59801,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "balloon"
+    },
+    {
+      "tick": 59862,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 59886,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "balloon"
+    },
+    {
+      "tick": 59905,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 59919,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 59936,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "bandit"
+    },
+    {
+      "tick": 59968,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "bandit"
+    },
+    {
+      "tick": 59972,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 59985,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 59998,
+      "attacker_slot": 3,
+      "attacker": "miner",
+      "defender_slot": 2,
+      "defender": "pyro"
+    },
+    {
+      "tick": 60022,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 60025,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60034,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60063,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60089,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60089,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60091,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 60101,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60145,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60147,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60225,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60241,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60250,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60279,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60284,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60333,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60343,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60346,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60398,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60412,
+      "attacker_slot": 3,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60413,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60429,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60432,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60482,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 3,
+      "defender": "barracks"
+    },
+    {
+      "tick": 60529,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60530,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60541,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60543,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60543,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60612,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60624,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60629,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60666,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60674,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60700,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60702,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60702,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60725,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60733,
+      "attacker_slot": 3,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60758,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "pyro"
+    },
+    {
+      "tick": 60782,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60782,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 60799,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60800,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60823,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60854,
+      "attacker_slot": 3,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60858,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60869,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60894,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60901,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60919,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 60947,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 60952,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60979,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 60986,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 61014,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61051,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61053,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 61077,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 61141,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61167,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61172,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 61198,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "smith"
+    },
+    {
+      "tick": 61211,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61213,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "bunker"
+    },
+    {
+      "tick": 61225,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 61242,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "house"
+    },
+    {
+      "tick": 61273,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61310,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61311,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61356,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61366,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61420,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61428,
+      "attacker_slot": 3,
+      "attacker": "cannon",
+      "defender_slot": 0,
+      "defender": "bunker"
+    },
+    {
+      "tick": 61439,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61487,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61503,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61529,
+      "attacker_slot": 3,
+      "attacker": "cannon",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61536,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61537,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "soldier"
+    },
+    {
+      "tick": 61548,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "bandit"
+    },
+    {
+      "tick": 61567,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61569,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61596,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61609,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61613,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61634,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61679,
+      "attacker_slot": 3,
+      "attacker": "cannon",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 61751,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61780,
+      "attacker_slot": 3,
+      "attacker": "cannon",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61834,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61854,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61904,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 61908,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61937,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61941,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 61969,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 62076,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 62127,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "miner"
+    },
+    {
+      "tick": 62136,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "house"
+    },
+    {
+      "tick": 62154,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 62202,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 62247,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 62269,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 62347,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 62368,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "miner"
+    },
+    {
+      "tick": 62509,
+      "attacker_slot": 0,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 62572,
+      "attacker_slot": 1,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "hall"
+    },
+    {
+      "tick": 62593,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 1,
+      "defender": "bandit"
+    },
+    {
+      "tick": 62613,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 62620,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 62638,
+      "attacker_slot": 1,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 62663,
+      "attacker_slot": 3,
+      "attacker": "cannon",
+      "defender_slot": 0,
+      "defender": "workshop"
+    },
+    {
+      "tick": 62674,
+      "attacker_slot": 2,
+      "attacker": "bandit",
+      "defender_slot": 0,
+      "defender": "hall"
+    },
+    {
+      "tick": 62707,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 62770,
+      "attacker_slot": 1,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 62853,
+      "attacker_slot": 1,
+      "attacker": "cowboy",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 62891,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 62910,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 63836,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "hall"
+    },
+    {
+      "tick": 63861,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 3,
+      "defender": "house"
+    },
+    {
+      "tick": 64063,
+      "attacker_slot": 1,
+      "attacker": "cowboy",
+      "defender_slot": 3,
+      "defender": "workshop"
+    },
+    {
+      "tick": 64173,
+      "attacker_slot": 3,
+      "attacker": "cannon",
+      "defender_slot": 0,
+      "defender": "saloon"
+    },
+    {
+      "tick": 64271,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 1,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 64523,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 1,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 64563,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "house"
+    },
+    {
+      "tick": 64646,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 3,
+      "defender": "barracks"
+    },
+    {
+      "tick": 64647,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 64825,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "bandit"
+    },
+    {
+      "tick": 64871,
+      "attacker_slot": 2,
+      "attacker": "cowboy",
+      "defender_slot": 1,
+      "defender": "soldier"
+    },
+    {
+      "tick": 64876,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 64925,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 64947,
+      "attacker_slot": 3,
+      "attacker": "soldier",
+      "defender_slot": 0,
+      "defender": "house"
+    },
+    {
+      "tick": 64982,
+      "attacker_slot": 3,
+      "attacker": "cannon",
+      "defender_slot": 0,
+      "defender": "saloon"
+    },
+    {
+      "tick": 65313,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "pyro"
+    },
+    {
+      "tick": 65499,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "cowboy"
+    },
+    {
+      "tick": 65505,
+      "attacker_slot": 1,
+      "attacker": "soldier",
+      "defender_slot": 2,
+      "defender": "bandit"
     }
   ]
 }
