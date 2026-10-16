@@ -1,0 +1,17 @@
+{
+  "name": "gold-rush-replays",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.23.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build:analyzer": "cmake -S analyzer -B analyzer/build -DCMAKE_BUILD_TYPE=Release && cmake --build analyzer/build",
+    "dev": "pnpm build:analyzer && pnpm -r --parallel dev",
+    "build": "pnpm build:analyzer && pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm test:analyzer",
+    "test:analyzer": "ctest --test-dir analyzer/build --output-on-failure"
+  }
+}

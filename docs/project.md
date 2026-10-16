@@ -39,6 +39,7 @@ apps/server/        TypeScript: Fastify API (src/api.ts) and job worker (src/wor
 apps/server/sql/    Numbered migration files (001_init.sql, 002_…)
 apps/web/           Vite + React + TypeScript SPA
 packages/shared/    Zod schemas and TS types shared by server and web (API contracts, analysis JSON shape)
+tsconfig.base.json  Strict TypeScript options every package extends
 data/               (gitignored) SQLite database file
 old-project/        Reference only; nothing imports from it
 docs/
@@ -54,7 +55,8 @@ docs/
 **Why both a synchronous step and a job queue:** the two commands do different amounts of work. Only the cheap header read happens during the request. Full simulation goes through the queue, because so far it has only been timed on a 70-second match. An hour-long match has about 50× the ticks and many more entities per tick, and we also add per-tick metric collection on top. The first analyzer milestone measures `analyze` on an hour-long replay. If that finishes in well under a second, we can revisit dropping the queue.
 
 ### Server (TypeScript)
-- Node 24 LTS, Fastify, Zod for request and response validation, and pnpm workspaces.
+- Node 24 LTS, Fastify, Zod for request and response validation (through `fastify-type-provider-zod`), and pnpm workspaces.
+- TypeScript runs directly through Node's built-in type stripping, so the server has no build step. This is why `erasableSyntaxOnly` is on (no enums, namespaces or parameter properties). `packages/shared` is consumed as TypeScript source by both the server and Vite, so it has no build step either.
 - **No ORM.** The database is accessed through `better-sqlite3` with handwritten SQL in a small repository module per table (e.g. `db/replays.ts`). Every query uses prepared statements with bound parameters.
 - Migrations are plain numbered `.sql` files in `apps/server/sql/`. A small runner applies them in order and records progress in `PRAGMA user_version`.
 - SQLite runs in WAL mode with `foreign_keys=ON` and a busy timeout, so the API and worker processes can share the one database file.
@@ -85,7 +87,7 @@ The full analysis goes in a BLOB because only one match page ever reads it. Summ
 - While a replay's status is `queued` or `processing`, the match page and the replay list poll for status.
 
 ### Local development
-- `pnpm install && pnpm dev` builds the analyzer (CMake) if it is missing, runs migrations, and starts the API, worker and Vite dev server together.
+- `pnpm install && pnpm dev` builds the analyzer (CMake) if it is missing, runs migrations, and starts the API, worker and Vite dev server together. Migrations and the worker join `pnpm dev` with the first stories that need them.
 - No external services are needed. All state is in `data/goldrush.db`.
 
 ## Metrics (Release 1)
@@ -217,6 +219,7 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-15: Leaderboards rank by win rate with a minimum number of games.
 - 2026-10-15: All matches are public for now.
 - 2026-10-15: Release 1 is the single-match page. Profiles, trends and leaderboards come later but are planned for in the data model.
+- 2026-10-16: Server TypeScript runs through Node 24's native type stripping instead of a build step or `tsx`, and `packages/shared` is consumed as TypeScript source. This keeps the toolchain small. It requires erasable-only TypeScript syntax.
 
 ## Open questions
 None at this time.

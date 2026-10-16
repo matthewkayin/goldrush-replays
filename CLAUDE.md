@@ -21,13 +21,22 @@ This is a side project. It is built to run on a developer laptop. Production hos
 - **Keep the PRD current.** When a decision is made with the user that changes or adds to the design, add a dated entry to "Decisions" and update the affected section. If code and PRD disagree, either fix the code or update the PRD. Don't leave them out of sync.
 
 ## Repo state and reference material
-- The project is greenfield. Only docs exist so far. The layout in `docs/project.md` ("Repo layout") is the plan to follow when creating directories.
+- The monorepo is scaffolded but no Release 1 story is built yet. The analyzer is a stub (`header`/`analyze` exit 1 with "not implemented yet"), the server has only `GET /api/health`, and the web app renders a heading. The layout in `docs/project.md` ("Repo layout") is the plan to follow when creating directories.
 - `old-project/` is the previous version of this site. It is **gitignored**, so it exists only in the main checkout, not in fresh clones or git worktrees. It is reference only: read from it or copy from it, never import from it or edit it.
 - `old-project/backend/src/simulation/` is the game's deterministic simulation. The analyzer copies it into `analyzer/`. Replays only hold inputs, so the copied simulation must behave exactly like the game's. Don't change its logic, even to fix apparent bugs or "clean up". Only make changes needed to compile it or to observe it (hooks for metric collection), and keep those small and clearly marked.
 - `test_replays/` holds sample replays from the developer: `test_ffa.rep` (free-for-all), `test_team.rep` (team game), `test_loss.rep` (uploader loses), `test_victory_long.rep` (uploader wins, longer match). `old-project/test_replays/` has one more, a 70-second 1v1 against a bot. If a story needs a replay that doesn't exist yet (disconnect, uploader leaves early, hour-long match), ask the developer for it rather than building one by hand.
 
 ## Commands
-No build or test commands exist yet. As tooling is added (CMake for the analyzer, pnpm scripts for the server and web), list the commands here: how to build, run everything (`pnpm dev`, per the PRD), run all tests, and run a single test.
+Requires Node 24+, pnpm, CMake 3.20+ and a C++20 compiler. Run from the repo root.
+
+- `pnpm install`: install all workspace dependencies.
+- `pnpm dev`: build the analyzer, then start the API (port 3000, `node --watch`) and Vite (port 5173, proxies `/api` to the API).
+- `pnpm build`: build the analyzer and the web app.
+- `pnpm build:analyzer`: configure and build the analyzer into `analyzer/build/`. The binary is `analyzer/build/analyzer`.
+- `pnpm typecheck`: typecheck every TypeScript package.
+- `pnpm test`: run all tests (build the analyzer first). Today that is only the analyzer's CTest suite. There are no TypeScript tests yet; add a `test` script to the root when the first ones are written.
+- Single analyzer test: `ctest --test-dir analyzer/build -R <test_name> --output-on-failure`.
+- One package's script: `pnpm --filter @goldrush/server <script>` (packages are `@goldrush/server`, `@goldrush/web`, `@goldrush/shared`).
 
 ## Verifying work
 - Before calling a task done, build what you changed and run its tests. Say plainly which tests ran and whether they passed.

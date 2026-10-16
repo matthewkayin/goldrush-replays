@@ -1,1 +1,6 @@
 old-project/
+node_modules/
+dist/
+*.tsbuildinfo
+data/
+analyzer/build/
