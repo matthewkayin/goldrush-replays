@@ -7,14 +7,37 @@ This repo is for a site called Gold Rush Replays, a replay site for the real-tim
 
 This is a side project. It is built to run on a developer laptop. Production hosting is not a goal.
 
-A detailed overview of the project can be found in `docs/project.md`.
+## `docs/project.md` is the source of truth
+`docs/project.md` is the PRD. It defines the architecture, repo layout, data model, metric definitions and the stories to build. Read the sections relevant to a task before starting it.
+
+- **Build only what the PRD asks for.** Release 1 stories are built in the order listed. Nothing from "Later" or "Out of scope" gets built, even partially, unless the user asks. The data model already accounts for "Later".
+- **Follow the Constraints section exactly.** The ones most easily broken by accident:
+  - No ORM or query builder. Handwritten SQL with prepared statements through `better-sqlite3`.
+  - Replay formats are never parsed in TypeScript. Anything that needs replay contents goes through the C++ analyzer.
+  - Only `analyzer header` may run during an HTTP request. `analyzer analyze` only runs in the worker.
+  - Nothing is written to disk except the SQLite database. Replays and analyses are BLOBs.
+  - API inputs and outputs are validated with Zod schemas from `packages/shared`.
+- **Don't guess on open questions.** If a story is ambiguous or the PRD contradicts itself or the code, ask the user. Don't pick an answer quietly.
+- **Keep the PRD current.** When a decision is made with the user that changes or adds to the design, add a dated entry to "Decisions" and update the affected section. If code and PRD disagree, either fix the code or update the PRD. Don't leave them out of sync.
+
+## Repo state and reference material
+- The project is greenfield. Only docs exist so far. The layout in `docs/project.md` ("Repo layout") is the plan to follow when creating directories.
+- `old-project/` is the previous version of this site. It is **gitignored**, so it exists only in the main checkout, not in fresh clones or git worktrees. It is reference only: read from it or copy from it, never import from it or edit it.
+- `old-project/backend/src/simulation/` is the game's deterministic simulation. The analyzer copies it into `analyzer/`. Replays only hold inputs, so the copied simulation must behave exactly like the game's. Don't change its logic, even to fix apparent bugs or "clean up". Only make changes needed to compile it or to observe it (hooks for metric collection), and keep those small and clearly marked.
+- `test_replays/` holds sample replays from the developer: `test_ffa.rep` (free-for-all), `test_team.rep` (team game), `test_loss.rep` (uploader loses), `test_victory_long.rep` (uploader wins, longer match). `old-project/test_replays/` has one more, a 70-second 1v1 against a bot. If a story needs a replay that doesn't exist yet (disconnect, uploader leaves early, hour-long match), ask the developer for it rather than building one by hand.
+
+## Commands
+No build or test commands exist yet. As tooling is added (CMake for the analyzer, pnpm scripts for the server and web), list the commands here: how to build, run everything (`pnpm dev`, per the PRD), run all tests, and run a single test.
+
+## Verifying work
+- Before calling a task done, build what you changed and run its tests. Say plainly which tests ran and whether they passed.
+- Analyzer tests compare output against saved expected JSON files. When output changes, check that the change is intended before regenerating the expected files, and say in your summary which files changed and why. Never regenerate them just to make a failing test pass.
 
 ## Write Maintainable Code
 As an agent, your job is to create good software. Good software is software that is maintainable. Notions of code quality like "cleanliness" or "elegance" are well-intentioned but aesthetic. They are not grounded in any reasoning.
 
 Writing maintainable code means understanding that humans and agents will be editing this repo in the future. This means:
- - Prefer simple solutions and code
-  - That said, sometimes complexity is necessary. Prefer simple solutions, but use complexity as needed
- - Writing code that reads like plain English and is self-documenting
- - Writing tests whose primary purpose is not to verify behavior but to safeguard against regression (allowing code authors to make changes confidently knowing that the tests have their back)
- - Writing and maintaining consistent documentation that allows humans and agents to understand the codebase
+- Prefer simple solutions and code. That said, sometimes complexity is necessary. Prefer simple solutions, but use complexity as needed.
+- Write code that reads like plain English and is self-documenting.
+- Write tests whose primary purpose is not to verify behavior but to safeguard against regression (allowing code authors to make changes confidently knowing that the tests have their back).
+- Write and maintain consistent documentation that allows humans and agents to understand the codebase. This includes keeping this file and `docs/project.md` up to date.
