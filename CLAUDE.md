@@ -37,6 +37,7 @@ Requires Node 24+, pnpm, CMake 3.20+ and a C++20 compiler. Run from the repo roo
 - `pnpm test`: run all tests (build the analyzer first). Today that is only the analyzer's CTest suite. There are no TypeScript tests yet; add a `test` script to the root when the first ones are written.
 - Single analyzer test: `ctest --test-dir analyzer/build -R <test_name> --output-on-failure`.
 - One package's script: `pnpm --filter @goldrush/server <script>` (packages are `@goldrush/server`, `@goldrush/web`, `@goldrush/shared`).
+- Formatting: C++ under `analyzer/` uses clang-format's built-in LLVM style (`clang-format -i --style=LLVM <file>`). TS/JS/JSON/CSS/HTML use prettier with default settings (`pnpm exec prettier --write <file>`). A Claude Code PostToolUse hook (`.claude/hooks/format.sh`) runs these on every file Claude edits.
 
 ## Verifying work
 - Before calling a task done, build what you changed and run its tests. Say plainly which tests ran and whether they passed.
