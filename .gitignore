@@ -4,3 +4,4 @@ dist/
 *.tsbuildinfo
 data/
 analyzer/build/
+analyzer/compile_commands.json

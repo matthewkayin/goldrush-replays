@@ -33,6 +33,7 @@ Requires Node 24+, pnpm, CMake 3.20+ and a C++20 compiler. Run from the repo roo
 - `pnpm dev`: build the analyzer, then start the API (port 3000, `node --watch`) and Vite (port 5173, proxies `/api` to the API).
 - `pnpm build`: build the analyzer and the web app.
 - `pnpm build:analyzer`: configure and build the analyzer into `analyzer/build/`. The binary is `analyzer/build/analyzer`.
+- `pnpm compile-commands`: configure the analyzer with CMake to write `analyzer/compile_commands.json` for clangd and other C++ tooling. clangd finds it there without extra setup.
 - `pnpm typecheck`: typecheck every TypeScript package.
 - `pnpm test`: run all tests (build the analyzer first): `pnpm test:analyzer` (the analyzer's CTest suite), then `pnpm test:ts` (each package's `test` script, using `node --test`). Today the only TypeScript tests are in `packages/shared/test/`.
 - Single analyzer test: `ctest --test-dir analyzer/build -R <test_name> --output-on-failure`.

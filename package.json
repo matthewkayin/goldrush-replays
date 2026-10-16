@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build:analyzer": "cmake -S analyzer -B analyzer/build -DCMAKE_BUILD_TYPE=Release && cmake --build analyzer/build",
+    "compile-commands": "cmake -S analyzer -B analyzer/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && mv analyzer/build/compile_commands.json analyzer/compile_commands.json",
     "dev": "pnpm build:analyzer && pnpm -r --parallel dev",
     "build": "pnpm build:analyzer && pnpm -r build",
     "typecheck": "pnpm -r typecheck",
