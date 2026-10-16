@@ -109,7 +109,7 @@ The analyzer computes these for every player in the match. Time series are sampl
 | Units made / lost | Counts of units (miners and army) by type, from `ENTITY_CREATED` (starting units excluded) and `ENTITY_KILLED`. Deaths from fire emit no event and aren't counted. |
 | Buildings built | Buildings placed (`ENTITY_CREATED`) minus `BUILDING_CANCELLED`, excluding landmines and the starting hall |
 | Kill/death trades | `ENTITY_KILLED` events between players' entities (units and buildings): tick, attacker owner and type, defender owner and type. A player's `kills` count is the units of players on other teams that their entities killed. |
-| Supply blocked | Ticks in which at least one of the player's finished buildings has its queue blocked (`timer == BUILDING_QUEUE_BLOCKED`), and the number of separate blocked periods. This includes being at the 100 population cap with units queued. |
+| Supply blocked | Ticks in which at least one of the player's finished buildings has its queue blocked (`timer == BUILDING_QUEUE_BLOCKED`), and the number of separate blocked periods. A player at the 100 population cap isn't counted, since more houses wouldn't help. |
 | Result | The analyzer reports each player's `defeated_at_tick`: the first tick in which their `players[p].mode` is `DEFEATED`, from losing all buildings or entities or from a `DISCONNECT` entry, or null if they were still active when the replay ended. The worker turns these into win/loss with the rule below. |
 
 ### Win/loss rule
@@ -238,7 +238,7 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-16: Measured on the 41-minute `test_victory_long.rep` (instead of an hour-long replay): `analyze` takes about 42 s with every Release 1 metric, against 41.5 s with no metrics, so the metrics cost almost nothing and the simulation itself is the cost. The job queue stays. An hour-long match should take about a minute, inside the worker's 120 s timeout.
 - 2026-10-16: Upgrade completion is found by diffing `players[p].upgrades` after every tick, because the game never emits `RESEARCH_COMPLETE`.
 - 2026-10-16: Units lost and kills come only from `ENTITY_KILLED`. Deaths from molotov fire or burning buildings emit no event, so they aren't counted. This is a known undercount.
-- 2026-10-16: Supply blocked is measured by checking every building after every tick, not from `SUPPLY_BLOCKED` events, because the game only emits that event when a queue changes, not when a building becomes blocked during an update (e.g. a house dies). The count is the number of separate blocked periods.
+- 2026-10-16: Supply blocked is measured by checking every building after every tick, not from `SUPPLY_BLOCKED` events, because the game only emits that event when a queue changes, not when a building becomes blocked during an update (e.g. a house dies). The count is the number of separate blocked periods. Being at the 100 population cap with units queued doesn't count as supply blocked (developer's call), even though the game blocks the queue the same way.
 - 2026-10-16: A player's `kills` and `units_lost` count units only, so they can be compared. Kills of allies don't count. The `kills` event list also has buildings. Landmines aren't buildings for `buildings_built`.
 - 2026-10-16: Output names for entity types and upgrades are snake_case ids defined in the analyzer (`cowboy`, `war_wagon`), not the game's display names.
 

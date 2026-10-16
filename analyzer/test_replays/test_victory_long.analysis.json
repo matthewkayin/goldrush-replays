@@ -21,8 +21,8 @@
         "kills": 52,
         "buildings_built": 32,
         "upgrades_completed": 2,
-        "supply_blocked_count": 5,
-        "supply_blocked_ticks": 74163
+        "supply_blocked_count": 3,
+        "supply_blocked_ticks": 10069
       },
       "units_built_by_type": {
         "miner": 31,

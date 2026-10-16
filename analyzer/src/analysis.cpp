@@ -296,6 +296,7 @@ static void record_completed_upgrades(const MatchState &state, uint32_t tick,
 
 // A player is supply blocked in a tick when at least one of their buildings
 // can't start its next unit. Each run of blocked ticks counts as one block.
+// A player at the population cap isn't counted: more houses wouldn't help.
 static void record_supply_blocked(const MatchState &state, Observer &observer,
                                   Analysis &analysis) {
   bool blocked[MAX_PLAYERS] = {};
@@ -305,6 +306,12 @@ static void record_supply_blocked(const MatchState &state, Observer &observer,
         entity.mode == MODE_BUILDING_FINISHED &&
         entity.timer == BUILDING_QUEUE_BLOCKED && is_player(entity.player_id)) {
       blocked[entity.player_id] = true;
+    }
+  }
+  for (uint8_t slot = 0; slot < MAX_PLAYERS; slot++) {
+    if (blocked[slot] &&
+        match_get_player_max_population(state, slot) == MATCH_MAX_POPULATION) {
+      blocked[slot] = false;
     }
   }
   for (uint32_t slot = 0; slot < MAX_PLAYERS; slot++) {

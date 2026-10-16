@@ -99,7 +99,7 @@ Every change is marked `// ANALYZER: <reason>`. `.claude/hooks/format.sh` skips 
 **Phase 5 notes (2026-10-16):**
 - The ASan/UBSan rerun was dropped (developer's call: the simulation is well tested in gameplay).
 - `SUPPLY_BLOCKED` events miss blocks that start during an update (the per-tick check in `entity.cpp` sets `BUILDING_QUEUE_BLOCKED` without an event), so `test_loss` had a count of 0 with 847 blocked ticks. Both numbers now come from the per-tick building scan; the count is the number of blocked runs.
-- Supply blocked includes being at the 100 population cap with a unit queued. In `test_victory_long` stew sits at 100/100 from about minute 22, which gives 74163 blocked ticks.
+- Being at the 100 population cap with a unit queued is not supply blocked (developer's call): a player whose max population is 100 is never counted. In `test_victory_long` stew sits at 100/100 from about minute 22; this took stew from 5 blocks / 74163 ticks to 3 / 10069.
 - `ENTITY_KILLED` only covers fights between players' entities; kills where either side has no player are dropped. Unit kills and losses agree (in `test_loss`, the bot's 45 kills are stew's 45 units lost, and stew's 18 are the bot's 18). No player loses more of a unit type than they built plus their starting units.
 - The entity table rejects ids ≥ `ID_MAX` from events with an error. That also silenced a GCC `-Wstringop-overflow` warning.
 - Timing with every metric: `test_loss` 1.5 s, `test_victory_long` 41.6 s (41.5 s with no metrics).
