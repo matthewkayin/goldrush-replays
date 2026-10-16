@@ -9,6 +9,7 @@
 #include "simulation/util/simplex_noise.h"
 #include <algorithm>
 #include <queue>
+#include <stdexcept> // ANALYZER: bounds check for untrusted replay data
 #include <cstring> // ANALYZER: memset/memcpy were only declared through transitive includes
 
 // This is a soft spawn size that biases map generation and also guarantees distance between goldmines
@@ -1755,6 +1756,9 @@ void raw_map_memread(RawMap* raw_map, MemCursor* cursor) {
     int width, height;
     memread(&width, sizeof(width), cursor);
     memread(&height, sizeof(height), cursor);
+    if (width <= 0 || height <= 0 || width > MAP_TILE_SIZE_MAX || height > MAP_TILE_SIZE_MAX) { // ANALYZER: bounds check for untrusted replay data
+        throw std::runtime_error("Replay map size is out of range."); // ANALYZER: bounds check for untrusted replay data
+    } // ANALYZER: bounds check for untrusted replay data
 
     raw_map_init(raw_map, width, height);
     memread(raw_map->data, raw_map->width * raw_map->height * sizeof(uint8_t), cursor);

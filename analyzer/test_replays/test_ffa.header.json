@@ -1,0 +1,30 @@
+{
+  "replay_version": 0,
+  "map_type": "klondike",
+  "players": [
+    {
+      "slot": 0,
+      "name": "bread",
+      "team": 0,
+      "color": "green"
+    },
+    {
+      "slot": 1,
+      "name": "Bot",
+      "team": 1,
+      "color": "red"
+    },
+    {
+      "slot": 2,
+      "name": "Bot",
+      "team": 2,
+      "color": "blue"
+    },
+    {
+      "slot": 3,
+      "name": "Bot",
+      "team": 3,
+      "color": "purple"
+    }
+  ]
+}

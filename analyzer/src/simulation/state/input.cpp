@@ -1,6 +1,7 @@
 #include "input.h"
 
 #include <cstring>
+#include <stdexcept> // ANALYZER: bounds check for untrusted replay data
 #include <cstdio>
 
 void match_input_serialize(uint8_t* out_buffer, size_t& out_buffer_length, const MatchInput& input) {
@@ -140,6 +141,9 @@ void match_input_serialize(uint8_t* out_buffer, size_t& out_buffer_length, const
     }
 }
 
+static void analyzer_check_selection_count(uint8_t count) { // ANALYZER: bounds check for untrusted replay data
+    if (count > SELECTION_LIMIT) throw std::runtime_error("Replay input selects more than SELECTION_LIMIT entities."); // ANALYZER: bounds check for untrusted replay data
+} // ANALYZER: bounds check for untrusted replay data
 MatchInput match_input_deserialize(const uint8_t* in_buffer, size_t& in_buffer_head) {
     MatchInput input;
     input.type = in_buffer[in_buffer_head];
@@ -166,6 +170,7 @@ MatchInput match_input_deserialize(const uint8_t* in_buffer, size_t& in_buffer_h
 
             memcpy(&input.move.entity_count, in_buffer + in_buffer_head, sizeof(uint8_t));
             in_buffer_head += sizeof(uint8_t);
+            analyzer_check_selection_count(input.move.entity_count); // ANALYZER: bounds check for untrusted replay data
 
             memcpy(&input.move.entity_ids, in_buffer + in_buffer_head, input.move.entity_count * sizeof(EntityId));
             in_buffer_head += input.move.entity_count * sizeof(EntityId);
@@ -175,6 +180,7 @@ MatchInput match_input_deserialize(const uint8_t* in_buffer, size_t& in_buffer_h
         case MATCH_INPUT_DEFEND: {
             memcpy(&input.stop.entity_count, in_buffer + in_buffer_head, sizeof(uint8_t));
             in_buffer_head += sizeof(uint8_t);
+            analyzer_check_selection_count(input.stop.entity_count); // ANALYZER: bounds check for untrusted replay data
 
             memcpy(&input.stop.entity_ids, in_buffer + in_buffer_head, input.stop.entity_count * sizeof(EntityId));
             in_buffer_head += input.stop.entity_count * sizeof(EntityId);
@@ -192,6 +198,7 @@ MatchInput match_input_deserialize(const uint8_t* in_buffer, size_t& in_buffer_h
 
             memcpy(&input.build.entity_count, in_buffer + in_buffer_head, sizeof(uint8_t));
             in_buffer_head += sizeof(uint8_t);
+            analyzer_check_selection_count(input.build.entity_count); // ANALYZER: bounds check for untrusted replay data
 
             memcpy(&input.build.entity_ids, in_buffer + in_buffer_head, input.build.entity_count * sizeof(EntityId));
             in_buffer_head += input.build.entity_count * sizeof(EntityId);
@@ -211,6 +218,7 @@ MatchInput match_input_deserialize(const uint8_t* in_buffer, size_t& in_buffer_h
 
             memcpy(&input.building_enqueue.building_count, in_buffer + in_buffer_head, sizeof(uint8_t));
             in_buffer_head += sizeof(uint8_t);
+            analyzer_check_selection_count(input.building_enqueue.building_count); // ANALYZER: bounds check for untrusted replay data
 
             memcpy(&input.building_enqueue.building_ids, in_buffer + in_buffer_head, input.building_enqueue.building_count * sizeof(EntityId));
             in_buffer_head += input.building_enqueue.building_count * sizeof(EntityId);
@@ -230,6 +238,7 @@ MatchInput match_input_deserialize(const uint8_t* in_buffer, size_t& in_buffer_h
 
             memcpy(&input.rally.building_count, in_buffer + in_buffer_head, sizeof(uint8_t));
             in_buffer_head += sizeof(uint8_t);
+            analyzer_check_selection_count(input.rally.building_count); // ANALYZER: bounds check for untrusted replay data
 
             memcpy(&input.rally.building_ids, in_buffer + in_buffer_head, input.rally.building_count * sizeof(EntityId));
             in_buffer_head += input.rally.building_count * sizeof(EntityId);
@@ -243,6 +252,7 @@ MatchInput match_input_deserialize(const uint8_t* in_buffer, size_t& in_buffer_h
         case MATCH_INPUT_UNLOAD: {
             memcpy(&input.unload.carrier_count, in_buffer + in_buffer_head, sizeof(uint8_t));
             in_buffer_head += sizeof(uint8_t);
+            analyzer_check_selection_count(input.unload.carrier_count); // ANALYZER: bounds check for untrusted replay data
 
             memcpy(&input.unload.carrier_ids, in_buffer + in_buffer_head, input.unload.carrier_count * sizeof(EntityId));
             in_buffer_head += input.unload.carrier_count * sizeof(EntityId);
@@ -252,6 +262,7 @@ MatchInput match_input_deserialize(const uint8_t* in_buffer, size_t& in_buffer_h
         case MATCH_INPUT_DECAMO: {
             memcpy(&input.camo.unit_count, in_buffer + in_buffer_head, sizeof(uint8_t));
             in_buffer_head += sizeof(uint8_t);
+            analyzer_check_selection_count(input.camo.unit_count); // ANALYZER: bounds check for untrusted replay data
 
             memcpy(&input.camo.unit_ids, in_buffer + in_buffer_head, input.camo.unit_count * sizeof(EntityId));
             in_buffer_head += input.camo.unit_count * sizeof(EntityId);
@@ -266,6 +277,7 @@ MatchInput match_input_deserialize(const uint8_t* in_buffer, size_t& in_buffer_h
 
             memcpy(&input.patrol.unit_count, in_buffer + in_buffer_head, sizeof(uint8_t));
             in_buffer_head += sizeof(uint8_t);
+            analyzer_check_selection_count(input.patrol.unit_count); // ANALYZER: bounds check for untrusted replay data
 
             memcpy(input.patrol.unit_ids, in_buffer + in_buffer_head, input.patrol.unit_count * sizeof(EntityId));
             in_buffer_head += input.patrol.unit_count * sizeof(EntityId);

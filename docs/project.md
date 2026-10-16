@@ -11,7 +11,7 @@ This is a side project. It is built to run on a developer laptop. Production hos
 ## Background: how replays work
 A `.rep` file holds only inputs, not outcomes. It contains a header (signature `0x46591214`, replay version, LCG seed, map type, raw map, 4 × `MatchPlayer`) followed by a stream of per-turn entries (`INPUT`, `CHAT`, `DISCONNECT`, `NEW_TURN`). One turn is 4 ticks, and the game runs 60 ticks per second. The only way to get any metric is to run the deterministic match simulation from the start and observe it.
 
-The game's simulation code, with graphics and sound removed, is in `old-project/backend/src/simulation/`. It is the starting point for the analyzer. The analyzer copies it into `analyzer/src/simulation/`, leaving out the old backend's driver (`simulation.{h,cpp}`). With GCC 16 that copy builds once `<cstring>` is included in the four files that call `memset`/`memcpy` without it. It simulated the 70-second test replay (`old-project/test_replays/`) in about 70 ms.
+The game's simulation code, with graphics and sound removed, is in `old-project/backend/src/simulation/`. It is the starting point for the analyzer. The analyzer copies it into `analyzer/src/simulation/`, leaving out the old backend's driver (`simulation.{h,cpp}`). With GCC 16 that copy builds once `<cstring>` is included in the four files that call `memset`/`memcpy` without it. It simulated a 70-second 1v1 replay in about 70 ms.
 
 Other facts that shape the design:
 - Inputs carry no player id. Ownership has to come from the entities in the input (see APM below).
@@ -47,7 +47,7 @@ docs/
 
 ### Analyzer (C++)
 - A standalone command-line program with no database, networking or threads. It reads the replay bytes from stdin, or from a file path when one is given (for local testing). It prints JSON on stdout. On an invalid replay it exits non-zero and writes a message to stderr.
-- `analyzer header [file]` only reads the header: it validates the replay and prints the replay version, map type and players (slot, name, team, color). It doesn't simulate, so it finishes in milliseconds. The API runs it **synchronously** during upload.
+- `analyzer header [file]` validates the replay and prints the replay version, map type and players (slot, name, team, color). It parses the whole entry stream so truncated uploads are rejected, but it doesn't simulate, so it finishes in milliseconds. The API runs it **synchronously** during upload.
 - `analyzer analyze [file]` simulates the whole match and prints the full analysis, including an `analyzer_version` field. It runs **asynchronously** in the worker through the job queue.
 - Built with CMake. JSON output uses vendored nlohmann/json.
 - Tested by running it on replays in `analyzer/test_replays/` and comparing against expected JSON files.
@@ -178,9 +178,16 @@ Acceptance criteria:
 - WHEN anyone clicks "Download" on a match page THE SYSTEM SHALL return the original `.rep` bytes from the database, using the original filename
 
 ## Test replays
-`old-project/test_replays/` currently has a single 70-second 1v1 against a bot. The developer will provide more replays on request. Ask for them when a story needs one, for example:
-- team games and 4-player free-for-alls, for the win/loss rule and per-player metrics
-- a match with a disconnect, and one where the uploader leaves early
+`analyzer/test_replays/` holds the developer's sample replays. Each has its expected analyzer output saved next to it.
+- `test_ffa.rep`: 4-player free-for-all on Klondike, about 18 minutes.
+- `test_team.rep`: 2v2 on Tombstone, about 23 minutes. Has `DISCONNECT` entries for slots 2 and 3 near the end.
+- `test_loss.rep`: 1v1 against a bot on Tombstone that the uploader loses, about 14 minutes.
+- `test_victory_long.rep`: 1v1 against a bot on Tombstone that the uploader wins, about 41 minutes. Has a `DISCONNECT` entry for slot 1 near the end.
+
+`analyzer/test_replays/invalid/` holds broken copies of `test_loss.rep` (bad signature, unknown version, truncated header, truncated entries) that the analyzer must reject. `analyzer/tests/make_invalid_fixtures.sh` recreates them.
+
+The developer will provide more replays on request. Ask for them when a story needs one, for example:
+- a match where the uploader leaves early
 - an hour-long match, for the performance measurement in the Analyzer CLI story
 
 ## Later
@@ -220,6 +227,8 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-15: All matches are public for now.
 - 2026-10-15: Release 1 is the single-match page. Profiles, trends and leaderboards come later but are planned for in the data model.
 - 2026-10-16: Server TypeScript runs through Node 24's native type stripping instead of a build step or `tsx`, and `packages/shared` is consumed as TypeScript source. This keeps the toolchain small. It requires erasable-only TypeScript syntax.
+- 2026-10-16: `analyzer header` parses the whole entry stream, not just the header, so truncated or malformed uploads are rejected at upload time instead of failing later in the worker. It still doesn't simulate. A file cut exactly between two entries can't be detected.
+- 2026-10-16: Besides the bad signature, unknown version and truncation cases, the reader rejects a map type or map size out of range, a player with a mode other than inactive/active, an unterminated name, a color ≥ 4 or a team ≥ 4, an entry before the first turn, an unknown entry or input type, an input whose length is 0, over 1024 or different from its contents, a selection over 20 entities, a disconnect of a player id ≥ 4, and a replay with no turns.
 
 ## Open questions
 None at this time.

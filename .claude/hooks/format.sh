@@ -12,7 +12,8 @@ relative="${file#"$project_dir"/}"
 [[ "$relative" != "$file" ]] || exit 0  # outside the project
 case "$relative" in
     # analyzer/src/simulation/ is the game's code; it stays byte-close to the original.
-    old-project/* | analyzer/src/simulation/* | */node_modules/* | node_modules/*) exit 0 ;;
+    # analyzer/vendor/ is third-party code, kept exactly as released.
+    old-project/* | analyzer/src/simulation/* | analyzer/vendor/* | */node_modules/* | node_modules/*) exit 0 ;;
 esac
 
 case "$relative" in

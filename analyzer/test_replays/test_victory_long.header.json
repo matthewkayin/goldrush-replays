@@ -1,0 +1,18 @@
+{
+  "replay_version": 0,
+  "map_type": "tombstone",
+  "players": [
+    {
+      "slot": 0,
+      "name": "stew",
+      "team": 0,
+      "color": "green"
+    },
+    {
+      "slot": 1,
+      "name": "Bot",
+      "team": 1,
+      "color": "red"
+    }
+  ]
+}
