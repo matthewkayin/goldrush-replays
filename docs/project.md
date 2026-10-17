@@ -60,7 +60,7 @@ docs/
 - **No ORM.** The database is accessed through `better-sqlite3` with handwritten SQL in a small repository module per table (e.g. `db/replays.ts`). Every query uses prepared statements with bound parameters.
 - `buildApp()` in `src/app.ts` builds the Fastify app without listening, so tests call it with `app.inject()`. Routes live in one plugin module per area in `src/routes/` (e.g. `routes/replays.ts`), each receiving the db as a plugin option. Every error response has the body `{ message }` (`apiErrorSchema` in `packages/shared`): 400 for validation errors, the thrown status for other 4xx errors, and a generic 500 that doesn't leak details. The web app calls the API only through `apiGet` and `apiPost` in `apps/web/src/api/client.ts`, which parse responses with the shared schemas and throw `ApiError` with that message.
 - Migrations are plain numbered `.sql` files in `apps/server/sql/`. A small runner (`src/db/migrate.ts`) applies them in order, each in its own transaction, and records the last applied number in `PRAGMA user_version`. `openDb()` in `src/db/connection.ts` sets the pragmas and runs the migrations, and both the API and the worker open the database through it. A migration file is never edited once it exists; schema changes go in a new file.
-- SQLite runs in WAL mode with `foreign_keys=ON` and a busy timeout, so the API and worker processes can share the one database file.
+- SQLite runs in WAL mode with `foreign_keys=ON` and a busy timeout, so the API and worker processes can share the one database file. Every transaction that writes is IMMEDIATE (takes the write lock before its first read), and each migration re-checks `user_version` under that lock, so the two processes can start together on a new database.
 - **Binary data lives in SQLite.** Replay files and analysis results are stored as BLOB columns, each in its own table, so list queries never read them. Analysis JSON is gzipped before it is stored. The database is the only storage.
 - Auth: username and password accounts that belong to the site and have nothing to do with Steam. Usernames are 3 to 20 characters from `A-Z a-z 0-9 _ -`. Passwords are 8 to 256 characters and are hashed with argon2id (the `argon2` package). Sessions live in an SQLite `sessions` table and are referenced by an httpOnly, SameSite=Lax cookie named `session` holding a random token. The table stores the token's SHA-256 hash, not the token. A session lasts 30 days from sign-in and isn't extended by use. Expired sessions are deleted whenever someone signs in.
   - Endpoints: `POST /api/auth/register` (201, signs the new user in; 409 if the username is taken), `POST /api/auth/login` (401 "Invalid username or password" for an unknown user or a wrong password alike), `POST /api/auth/logout` (deletes the session; fine when signed out) and `GET /api/auth/me` (`{ user }`, with `user: null` for visitors rather than a 401). Contracts are in `packages/shared/src/auth.ts`.
@@ -73,7 +73,10 @@ docs/
   - `GET /api/matches/:id/analysis` (public): the stored analysis, gunzipped. 404 "Analysis not ready" unless processed.
   - `GET /api/matches/:id/replay` (public): the original `.rep` bytes as `application/octet-stream`, with `Content-Disposition: attachment` using the original filename.
   - Every endpoint that returns a replay uses the same `replaySchema`: id, filename, uploadedAt, processedAt, mapType, replayVersion, durationTicks, status, error, uploaderSlot and players (slot, name, team, color, result, defeatedAtTick).
-- Job queue: a `jobs` table in SQLite. The worker polls about once a second and claims a job atomically (`UPDATE … WHERE status='queued' … RETURNING`). It reads the replay BLOB and pipes it to `analyzer analyze` on stdin. The analyzer gets a 120 s timeout, and worker concurrency is configurable (default 2). A job gets 3 attempts and then the replay is marked `failed`. Jobs left `running` from a crashed worker are requeued when the worker starts.
+- Job queue: a `jobs` table in SQLite. The worker polls about once a second and claims a job atomically (`UPDATE … WHERE status='queued' … RETURNING`). It reads the replay BLOB and pipes it to `analyzer analyze` on stdin. The analyzer gets a 120 s timeout, and worker concurrency is configurable (default 2). A job gets 3 attempts and then the replay is marked `failed`. Jobs left `running` from a crashed worker are requeued when the worker starts, without counting that run as an attempt.
+  - `src/worker.ts` is the entrypoint and `src/job-runner.ts` the loop. `ANALYZER_PATH` (default `analyzer/build/analyzer`, resolved from the source file rather than the cwd) and `WORKER_CONCURRENCY` come from the environment. The poll interval, timeout and attempts are constants in `src/config.ts`.
+  - A claim increments `attempts` and sets the replay to `processing` in the same transaction. A failed attempt puts the job and the replay back to `queued`, until the last one, which sets both to `failed`. On success one transaction stores the analysis, fills in every `match_players` result and stat column, and marks the replay `processed` and the job `done`.
+  - A failed replay's `error` is the analyzer's own message (e.g. "Replay file is truncated.") or a generic one when the server was at fault. `jobs.last_error` keeps the full error.
 
 ### Upload flow
 1. `POST /api/replays` (multipart, one or more files): for each file, the API pipes the bytes to `analyzer header`. A valid file is stored as a `replays` row plus a `replay_files` BLOB with status `awaiting_player`, and the response includes its player list. An invalid file is rejected with a reason, and the other files are still accepted.
@@ -100,10 +103,12 @@ The full analysis goes in a BLOB because only one match page ever reads it. Summ
 
 ### Frontend
 - React 19, Vite, TypeScript, React Router, TanStack Query, MUI with MUI X Charts (the same choices as the old project), and react-dropzone for uploads.
-- While a replay's status is `queued` or `processing`, the match page and the replay list poll for status.
+- While a replay's status is `queued` or `processing`, the match page and the replay list poll for status every 2 seconds.
+- The upload page rejects files that aren't `.rep` or are over `maxReplayFileBytes` before sending them. The server still checks the size, and the analyzer checks the contents.
+- Teams are shown counting from 1 ("Team 1"), while replays and the API number them from 0. Entities and upgrades are shown with the game's display names, mapped from the analyzer's ids in `apps/web/src/pages/match/match-data.ts`, and players in the game's colors (`apps/web/src/display.ts`).
 
 ### Local development
-- `pnpm install && pnpm dev` builds the analyzer (CMake) if it is missing, runs migrations, and starts the API, worker and Vite dev server together. Migrations and the worker join `pnpm dev` with the first stories that need them.
+- `pnpm install && pnpm dev` builds the analyzer (CMake) if it is missing, runs migrations, and starts the API, worker and Vite dev server together. Migrations run whenever the API or worker opens the database, and the server's `dev` script runs the API and the worker side by side (`dev:api`, `dev:worker`).
 - No external services are needed. All state is in `data/goldrush.db`.
 
 ## Metrics (Release 1)
@@ -132,6 +137,7 @@ The analyzer computes these for every player in the match. Time series are sampl
 Applied by the worker, using `defeated_at_tick` from the analyzer and the replay's `uploader_slot`. The analyzer doesn't know who uploaded the replay.
 - A player who disconnects or leaves has lost. `DISCONNECT` entries are applied as defeat.
 - The last team with at least one active player wins. Everyone else loses.
+- If no player is active at the end, the winner can't be known, so every player gets a loss. The uploader either lost or left before the end, so a loss is right for them either way.
 - A replay stops recording when the uploader leaves. So if it ends with more than one team still active, the uploader left while an opponent was still in the game: the uploader's team loses, and the other teams still active win.
 
 ## Constraints
@@ -286,6 +292,19 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-17: Release 1 stories no longer have to be built in the order listed. After auth, the remaining stories are built in parallel by three agents (ingest, library, match), each in its own git worktree and building against the contracts in `packages/shared/src/api.ts`. `docs/release1-workflow.md` sets out who owns which files.
 - 2026-10-17: The upload story owns the job worker and the win/loss rule, because it is the story that queues jobs.
 - 2026-10-17: Code more than one parallel agent needs is written before they start, so they don't each write their own copy or conflict on the same files: the replay reader (`findReplay`/`findReplays` in `apps/server/src/db/replays.ts`, which maps a replay and its players to `replaySchema`), the new dependencies (`@fastify/multipart`, `react-dropzone`, `@mui/x-charts`), and the routes and header links for the upload, "My replays" and match pages, with placeholder pages.
+- 2026-10-17: Uploads use `@fastify/multipart` with `throwFileSizeLimit: false`, so a file over 5 MB is rejected on its own while the rest of the request goes on. Files are validated one at a time, in upload order. Files under any field other than `files` are ignored.
+- 2026-10-17: A job run cut short by the worker stopping or crashing doesn't count as an attempt (developer's call). The startup requeue decrements `attempts` and moves the replay from `processing` back to `queued`. The analyzer is a separate process, so a bad replay can't crash the worker, and `node --watch` restarts shouldn't use up attempts.
+- 2026-10-17: A failed replay's `error` shows the analyzer's own message. Server-side failures show a generic message, and the details stay in `jobs.last_error` and the worker log.
+- 2026-10-17: If no player is active when a replay ends, every player gets a loss (developer's call). A replay either ends in a clear result or ends because the uploader left, so the uploader has at least lost. Cases where the final winner can't be known, such as a 2v2 the uploader left while their teammate was still playing, count as a loss for the uploader.
+- 2026-10-17: The upload page rejects files that aren't `.rep` or are over 5 MB before uploading them (developer's call to keep the extension check), so a multi-file drop isn't slowed by files the server would reject anyway.
+- 2026-10-17: The match page's income chart is the gold mined in the 60 seconds before each sample, from the `gold_mined` running total (counted from the start during the first minute). The APM chart plots each minute's raw count at the end of that minute.
+- 2026-10-17: The replay download sends `Content-Disposition: attachment` with an ASCII `filename` fallback (anything outside printable ASCII, plus quotes, backslashes and `%`, becomes `_`) and the exact name in `filename*=UTF-8''…` (RFC 6266/5987).
+- 2026-10-17: A replay marked processed with no stored analysis answers 404 "Analysis not ready", the same as an unprocessed one. The worker writes both in one transaction, so it shouldn't happen.
+- 2026-10-17: Kill counts on the match page count anything that isn't a unit, landmines included, as a building.
+- 2026-10-17: Display helpers used by more than one page (`src/display.ts`, `components/PlayerName.tsx`) and the server's `httpError` (`src/routes/http-error.ts`) each live in one module, after the parallel agents wrote their own copies. `packages/shared` exports types for its enums (`MapType`, `PlayerColor`, `UnitType`, `EntityType`, `Upgrade`).
+- 2026-10-17: Write transactions are IMMEDIATE. With two processes in WAL mode, a deferred transaction that reads and then writes fails with SQLITE_BUSY_SNAPSHOT, without waiting, if the other process committed in between. The worker gzips an analysis before taking the lock. Migrations re-check `user_version` under the lock, and `openDb` retries the switch to WAL, because `pnpm dev` starts the API and the worker on a new database at the same moment.
+- 2026-10-17: The analyzer runs in its own process group, so Ctrl-C in `pnpm dev` reaches only the worker, which then kills it as an interrupted run. If the analyzer got the signal first, its death would count as a failed attempt.
+- 2026-10-17: `?page=` is capped at 1,000,000 so the SQL OFFSET stays a valid integer, and `WORKER_CONCURRENCY` must be a whole number of at least 1 or the worker refuses to start.
 
 ## Open questions
 None at this time.

@@ -29,7 +29,7 @@ Everything parallel agents would otherwise each invent differently. Nothing in W
    - Routes in `router.tsx` (`/upload` and `/replays` under `RequireUser`, `/matches/:id` public) and header links in `Layout.tsx`, pointing at placeholder pages that the agents replace.
    - Decisions in `docs/project.md` (parallel build, worker ownership, shared code) and `CLAUDE.md` (story order rule dropped, repo state).
 
-## Wave 1: three parallel agents
+## Wave 1: three parallel agents (done)
 
 Each agent runs in its own worktree on its own branch, owns a set of files, and treats everything else as read-only. Files outside its ownership change only if the brief says so; if the contract turns out to be wrong, the agent stops and reports rather than editing `packages/shared/src/api.ts` itself.
 
@@ -49,6 +49,9 @@ Each agent's brief contains:
 - Done means: `pnpm typecheck` and `pnpm test` pass in the worktree, and a short report lists files changed, tests added, and any question or contract problem found. No commits; the lead and user review first.
 
 ## Wave 2: lead session, serial
+
+The agents' work was copied into the main checkout (they left it uncommitted in their worktrees), with `app.ts` combined by hand. The duplicates the agents each wrote (display helpers, `PlayerName`, `httpError`, local enum types) were merged into one copy each.
+
 
 1. Merge the three branches. The only expected conflict is route registration in `app.ts`.
 2. Run `pnpm dev` and walk all four test replays through register → upload → choose player → list → match page → download.
