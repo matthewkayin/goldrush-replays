@@ -1,16 +1,65 @@
-import { useMemo } from "react";
-import { Box, Typography } from "@mui/material";
-import { LineChart, lineClasses } from "@mui/x-charts/LineChart";
+import { useMemo, useState } from "react";
+import { Box, Button, Chip, Typography } from "@mui/material";
+import { LineChart } from "@mui/x-charts/LineChart";
 import type { Analysis } from "@goldrush/shared";
+import { PlayerName } from "../../components/PlayerName.tsx";
 import { formatSeconds } from "../../display.ts";
-import { matchCharts, minuteTicks, type TimeChart } from "./match-data.ts";
+import {
+  matchCharts,
+  minuteTicks,
+  withoutPlayers,
+  type TimeChart,
+} from "./match-data.ts";
 import { Section } from "./Section.tsx";
 
-// Every time-series chart, two to a row on wide screens.
+// Every time-series chart, two to a row on wide screens. Players can be
+// hidden from all of them at once with the toggles above.
 export function MatchCharts({ analysis }: { analysis: Analysis }) {
   const charts = useMemo(() => matchCharts(analysis), [analysis]);
+  const [hiddenSlots, setHiddenSlots] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+
+  function togglePlayer(slot: number) {
+    const next = new Set(hiddenSlots);
+    if (!next.delete(slot)) {
+      next.add(slot);
+    }
+    setHiddenSlots(next);
+  }
+
   return (
     <Section title="Over time">
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: 1,
+          mb: 2,
+        }}
+      >
+        {analysis.players.map((player) => {
+          const isShown = !hiddenSlots.has(player.slot);
+          return (
+            <Chip
+              key={player.slot}
+              label={<PlayerName player={player} />}
+              variant={isShown ? "filled" : "outlined"}
+              aria-pressed={isShown}
+              onClick={() => togglePlayer(player.slot)}
+              sx={{ opacity: isShown ? 1 : 0.5 }}
+            />
+          );
+        })}
+        <Button
+          size="small"
+          disabled={hiddenSlots.size === 0}
+          onClick={() => setHiddenSlots(new Set())}
+        >
+          Show all
+        </Button>
+      </Box>
       <Box
         sx={{
           display: "grid",
@@ -26,7 +75,7 @@ export function MatchCharts({ analysis }: { analysis: Analysis }) {
             <Typography variant="body2" color="text.secondary">
               {description}
             </Typography>
-            <TimeSeriesChart chart={chart} />
+            <TimeSeriesChart chart={withoutPlayers(chart, hiddenSlots)} />
           </Box>
         ))}
       </Box>
@@ -34,17 +83,8 @@ export function MatchCharts({ analysis }: { analysis: Analysis }) {
   );
 }
 
-// One line per player (or two, for population) against match time.
+// One line per player against match time.
 function TimeSeriesChart({ chart }: { chart: TimeChart }) {
-  // Dashed lines are picked out by the series id MUI puts on each path.
-  const dashedLines = Object.fromEntries(
-    chart.lines
-      .filter((line) => line.dashed)
-      .map((line) => [
-        `& .${lineClasses.line}[data-series="${line.id}"]`,
-        { strokeDasharray: "6 4" },
-      ]),
-  );
   const lastSecond = chart.times.at(-1) ?? 0;
   return (
     <LineChart
@@ -69,7 +109,6 @@ function TimeSeriesChart({ chart }: { chart: TimeChart }) {
         showMark: false,
         curve: "linear" as const,
       }))}
-      sx={dashedLines}
     />
   );
 }

@@ -29,6 +29,7 @@ import {
   sampleTimes,
   unitCounts,
   upgradeTimings,
+  withoutPlayers,
 } from "../src/pages/match/match-data.ts";
 import { formatTick } from "../src/display.ts";
 import { stubFetch } from "./stub-fetch.ts";
@@ -221,21 +222,32 @@ test("every chart has a line per player in their color, as long as its times", (
   );
   assert.equal(gold.lines[0]!.data, team.players[0]!.series.gold);
 
+  assert.deepEqual(
+    gold.lines.map((line) => line.slot),
+    [0, 1, 2, 3],
+  );
+
   const population = charts[3]!.chart;
-  assert.equal(population.lines.length, 8);
-  assert.deepEqual(population.lines[1], {
-    id: "slot-0-max",
-    label: "stew (max)",
-    color: "#6cb348",
-    data: team.players[0]!.series.max_population,
-    dashed: true,
-  });
+  assert.equal(population.lines.length, 4);
+  assert.equal(population.lines[0]!.data, team.players[0]!.series.population);
 
   const apm = charts[6]!.chart;
   assert.equal(apm.times.length, 23);
   assert.deepEqual(apm.times.slice(0, 2), [60, 120]);
   assert.equal(apm.times.at(-1), team.duration_ticks / 60);
   assert.equal(apm.lines[0]!.data, team.players[0]!.series.apm_per_minute);
+});
+
+test("hidden players' lines are left out of a chart", () => {
+  const gold = matchCharts(team)[0]!.chart;
+  const shown = withoutPlayers(gold, new Set([1, 2]));
+  assert.deepEqual(
+    shown.lines.map((line) => line.slot),
+    [0, 3],
+  );
+  assert.equal(shown.times, gold.times);
+  assert.deepEqual(withoutPlayers(gold, new Set()).lines, gold.lines);
+  assert.deepEqual(withoutPlayers(gold, new Set([0, 1, 2, 3])).lines, []);
 });
 
 test("the income chart ends at the gold mined in the last minute", () => {

@@ -85,11 +85,11 @@ export function describeWinner(players: MatchPlayer[]): string | null {
 // One line on a time-series chart.
 export interface ChartLine {
   id: string;
+  // The player the line belongs to.
+  slot: number;
   label: string;
   color: string;
   data: number[];
-  // Drawn dashed, for a line that bounds another (max population).
-  dashed: boolean;
 }
 
 // `times` are in seconds of match time, one per point of every line.
@@ -135,17 +135,24 @@ export function incomePerMinute(goldMined: number[]): number[] {
   );
 }
 
-function playerLine(
-  player: PlayerAnalysis,
-  data: number[],
-  options: { idSuffix?: string; labelSuffix?: string; dashed?: boolean } = {},
-): ChartLine {
+// The chart with the hidden players' lines left out.
+export function withoutPlayers(
+  chart: TimeChart,
+  hiddenSlots: ReadonlySet<number>,
+): TimeChart {
   return {
-    id: `slot-${player.slot}${options.idSuffix ?? ""}`,
-    label: `${player.name}${options.labelSuffix ?? ""}`,
+    times: chart.times,
+    lines: chart.lines.filter((line) => !hiddenSlots.has(line.slot)),
+  };
+}
+
+function playerLine(player: PlayerAnalysis, data: number[]): ChartLine {
+  return {
+    id: `slot-${player.slot}`,
+    slot: player.slot,
+    label: player.name,
     color: playerColors[player.color],
     data,
-    dashed: options.dashed ?? false,
   };
 }
 
@@ -176,20 +183,6 @@ function apmChart(analysis: Analysis): TimeChart {
   };
 }
 
-function populationChart(analysis: Analysis): TimeChart {
-  return {
-    times: sampleTimes(analysis),
-    lines: analysis.players.flatMap((player) => [
-      playerLine(player, player.series.population),
-      playerLine(player, player.series.max_population, {
-        idSuffix: "-max",
-        labelSuffix: " (max)",
-        dashed: true,
-      }),
-    ]),
-  };
-}
-
 export interface MatchChart {
   title: string;
   description: string;
@@ -217,8 +210,8 @@ export function matchCharts(analysis: Analysis): MatchChart[] {
     },
     {
       title: "Population",
-      description: "Population used, and the max (dashed)",
-      chart: populationChart(analysis),
+      description: "Population used",
+      chart: sampledChart(analysis, (series) => series.population),
     },
     {
       title: "Army population",

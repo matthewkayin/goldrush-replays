@@ -307,6 +307,7 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-17: The analyzer runs in its own process group, so Ctrl-C in `pnpm dev` reaches only the worker, which then kills it as an interrupted run. If the analyzer got the signal first, its death would count as a failed attempt.
 - 2026-10-17: `?page=` is capped at 1,000,000 so the SQL OFFSET stays a valid integer, and `WORKER_CONCURRENCY` must be a whole number of at least 1 or the worker refuses to start.
 - 2026-10-17: The home page is a landing page that describes the site and links to sign up or upload (developer's request). Its feature cards describe what the match page shows, so they change with it.
+- 2026-10-17: The match page's population chart shows only population used, not max population (developer's request). The analysis still records `max_population`. The "Over time" section has a toggle per player that shows or hides that player on every chart at once, plus "Show all". The choice isn't saved and resets on reload.
 
 ## Open questions
 None at this time.
