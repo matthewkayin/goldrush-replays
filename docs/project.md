@@ -174,6 +174,8 @@ Acceptance criteria:
 - WHEN the job is queued THE SYSTEM SHALL respond right away, without waiting for the simulation
 - WHEN a visitor who is not signed in tries to upload THE SYSTEM SHALL ask them to sign in
 
+This story also builds the job worker (`src/worker.ts`) and the win/loss rule. No story's acceptance criteria cover them, but the list and the match page need jobs to finish, and this is the story that queues them.
+
 ### Story: See my replays and their status
 As a signed-in player, I want a list of my uploaded replays, so that I can find matches and see whether they have finished processing.
 Acceptance criteria:
@@ -281,6 +283,9 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-16: Upload answers 200 with a result per file even when every file is rejected, because a multi-file upload is judged file by file.
 - 2026-10-16: Match endpoints are public and keyed by replay id. The overview answers at every status, and the analysis answers 404 until the replay is processed.
 - 2026-10-16: The replay list uses page numbers, 20 per page.
+- 2026-10-17: Release 1 stories no longer have to be built in the order listed. After auth, the remaining stories are built in parallel by three agents (ingest, library, match), each in its own git worktree and building against the contracts in `packages/shared/src/api.ts`. `docs/release1-workflow.md` sets out who owns which files.
+- 2026-10-17: The upload story owns the job worker and the win/loss rule, because it is the story that queues jobs.
+- 2026-10-17: Code more than one parallel agent needs is written before they start, so they don't each write their own copy or conflict on the same files: the replay reader (`findReplay`/`findReplays` in `apps/server/src/db/replays.ts`, which maps a replay and its players to `replaySchema`), the new dependencies (`@fastify/multipart`, `react-dropzone`, `@mui/x-charts`), and the routes and header links for the upload, "My replays" and match pages, with placeholder pages.
 
 ## Open questions
 None at this time.

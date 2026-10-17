@@ -1,4 +1,4 @@
-import { AppBar, Box, Container, Link, Toolbar } from "@mui/material";
+import { AppBar, Box, Button, Container, Link, Toolbar } from "@mui/material";
 import { Link as RouterLink, Outlet } from "react-router";
 import { colors } from "../theme.ts";
 import { AccountMenu } from "./AccountMenu.tsx";
@@ -19,7 +19,15 @@ export function Layout() {
             Gold Rush Replays
           </Link>
           <Box sx={{ flexGrow: 1 }} />
-          {/* Navigation links go here, before the account menu. */}
+          {/* Visitors see these too; the pages ask them to sign in. */}
+          <Box sx={{ display: "flex", gap: 1, mr: 2 }}>
+            <Button color="inherit" component={RouterLink} to="/upload">
+              Upload
+            </Button>
+            <Button color="inherit" component={RouterLink} to="/replays">
+              My replays
+            </Button>
+          </Box>
           <AccountMenu />
         </Toolbar>
       </AppBar>

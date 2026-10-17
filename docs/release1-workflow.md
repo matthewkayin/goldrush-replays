@@ -1,4 +1,4 @@
-# Release 1 build workflow (draft)
+# Release 1 build workflow
 
 How the remaining Release 1 stories get built with a lead session plus a few parallel agents. `docs/project.md` stays the source of truth for *what* to build; this file only covers *who builds what, in what order*.
 
@@ -22,8 +22,12 @@ Everything parallel agents would otherwise each invent differently. Nothing in W
 1. **Server skeleton** (done). `buildApp()` in `apps/server/src/app.ts`, route modules in `src/routes/`, the `{ message }` error shape, `buildTestApp(t)` for tests, and `API_PORT` and `DB_PATH` from env. `ANALYZER_PATH` is left for the upload story, which is the first thing to use it.
 2. **Web skeleton** (done). React Router, TanStack Query, MUI theme, `apiGet`/`apiPost` in `src/api/client.ts`, and a layout with an empty slot in the header. `WEB_PORT` and `API_PORT` from env, so worktrees can run side by side.
 3. **Auth story, end to end** (done). Also fills the header slot with nav and the signed-in/signed-out state. `db/users.ts`, `db/sessions.ts`, argon2id hashing, the session cookie, `POST /api/auth/register`, `/login`, `/logout`, `GET /api/auth/me`, a `requireUser` hook, sign-in and register pages, and tests. Auth is small, and every other story depends on it, so it's faster built once by one session than split across agents.
-4. **API contracts for every remaining endpoint**, as Zod schemas in `packages/shared/src/api.ts`: upload response (per-file accepted/rejected), choose-player request, replay list item and page, match overview, analysis response, error shape. These are what let Wave 1 run in parallel: each agent builds against the contract, not against the others' code.
-5. Update `docs/project.md` (Decisions: parallel build, file ownership) and `CLAUDE.md` (repo state).
+4. **API contracts for every remaining endpoint** (done), as Zod schemas in `packages/shared/src/api.ts`: upload response (per-file accepted/rejected), choose-player request, replay list item and page, match overview, analysis response, error shape. These are what let Wave 1 run in parallel: each agent builds against the contract, not against the others' code.
+5. **Shared code and docs** (done). Code more than one agent needs, so nobody writes their own copy and nobody conflicts on the same file:
+   - `findReplay`/`findReplays` in `apps/server/src/db/replays.ts`: a replay plus its `match_players`, as `replaySchema`. Ingest and match both return replays through it.
+   - Dependencies installed: `@fastify/multipart` (server), and `react-dropzone` and `@mui/x-charts` (web). Agents don't touch `package.json` or `pnpm-lock.yaml`.
+   - Routes in `router.tsx` (`/upload` and `/replays` under `RequireUser`, `/matches/:id` public) and header links in `Layout.tsx`, pointing at placeholder pages that the agents replace.
+   - Decisions in `docs/project.md` (parallel build, worker ownership, shared code) and `CLAUDE.md` (story order rule dropped, repo state).
 
 ## Wave 1: three parallel agents
 
@@ -31,9 +35,9 @@ Each agent runs in its own worktree on its own branch, owns a set of files, and 
 
 | Agent | Owns | Develops against |
 |---|---|---|
-| ingest | `routes/replays.ts`, `db/replays.ts`, `db/replay-files.ts`, `db/jobs.ts`, `db/match-players.ts` (writes), `worker.ts`, `win-loss.ts`, their tests | Real analyzer on the 4 test replays |
-| library | `apps/web/src/pages/upload/`, `apps/web/src/pages/replays/` | Contract schemas; API mocked in tests, or the ingest branch once it lands |
-| match | `routes/matches.ts`, `db/matches.ts` (read queries only), `apps/web/src/pages/match/` | Saved `analyzer/test_replays/*.analysis.json`, inserted directly in tests |
+| ingest | `routes/replays.ts`, `db/replays.ts` (adds writes; `findReplay`/`findReplays` stay as they are), `db/replay-files.ts`, `db/jobs.ts`, `db/match-players.ts` (writes), `worker.ts`, `win-loss.ts`, `config.ts` (`ANALYZER_PATH`, worker settings), the server's `dev` script (to start the worker), registering its routes in `app.ts`, their tests | Real analyzer on the 4 test replays |
+| library | `apps/web/src/pages/upload/`, `apps/web/src/pages/replays/`, `apps/web/src/api/replays.ts`, their tests | Contract schemas; API mocked in tests, or the ingest branch once it lands |
+| match | `routes/matches.ts`, `db/matches.ts` (read queries only), registering its routes in `app.ts`, `apps/web/src/pages/match/`, `apps/web/src/api/matches.ts`, their tests | Saved `analyzer/test_replays/*.analysis.json`, inserted directly in tests |
 
 The match agent doesn't need the worker: the expected analysis files already pass `analysisSchema`, so the page and endpoints can be built on them while ingest builds the worker.
 
@@ -46,12 +50,12 @@ Each agent's brief contains:
 
 ## Wave 2: lead session, serial
 
-1. Merge the three branches. Expected conflicts are small (route registration in `app.ts`, nav links in the layout).
+1. Merge the three branches. The only expected conflict is route registration in `app.ts`.
 2. Run `pnpm dev` and walk all four test replays through register → upload → choose player → list → match page → download.
 3. Run an independent review (`/code-review`) of the merged diff.
 4. Fix, update `docs/project.md` and `CLAUDE.md`, hand over for review and commit.
 
-## Open questions
+## Resolved questions
 
-- **Which story owns the worker?** No story's acceptance criteria cover it directly. Upload stops at "queue an analysis job", while "See my replays" and "View a match page" need jobs to finish. This draft gives it to ingest alongside upload.
-- **Story order.** `CLAUDE.md` says Release 1 stories are built in the order listed. Wave 1 builds upload, list, match page and download at the same time. That needs a Decisions entry and a `CLAUDE.md` change if we go ahead.
+- **Which story owns the worker?** The upload story, built by ingest (Decisions, 2026-10-17).
+- **Story order.** The rule that stories are built in the order listed is dropped (Decisions, 2026-10-17).
