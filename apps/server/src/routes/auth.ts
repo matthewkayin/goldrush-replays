@@ -21,10 +21,7 @@ import {
   deleteSession,
 } from "../db/sessions.ts";
 import { createUser, findUserByUsername } from "../db/users.ts";
-
-function httpError(statusCode: number, message: string): Error {
-  return Object.assign(new Error(message), { statusCode });
-}
+import { httpError } from "./http-error.ts";
 
 // Sign-in checks a password against this when the username doesn't exist,
 // so an unknown username takes as long to reject as a wrong password.
