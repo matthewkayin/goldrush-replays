@@ -105,6 +105,7 @@ The full analysis goes in a BLOB because only one match page ever reads it. Summ
 - React 19, Vite, TypeScript, React Router, TanStack Query, MUI with MUI X Charts (the same choices as the old project), and react-dropzone for uploads.
 - While a replay's status is `queued` or `processing`, the match page and the replay list poll for status every 2 seconds.
 - The upload page rejects files that aren't `.rep` or are over `maxReplayFileBytes` before sending them. The server still checks the size, and the analyzer checks the contents.
+- The home page (`/`) is a landing page for new players: what the match page shows, how uploading works, an example army-value chart with made-up data (`pages/HomeDemoChart.tsx`), and an "Upload a replay" button.
 - Teams are shown counting from 1 ("Team 1"), while replays and the API number them from 0. Entities and upgrades are shown with the game's display names, mapped from the analyzer's ids in `apps/web/src/pages/match/match-data.ts`, and players in the game's colors (`apps/web/src/display.ts`).
 
 ### Local development
@@ -305,6 +306,7 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-17: Write transactions are IMMEDIATE. With two processes in WAL mode, a deferred transaction that reads and then writes fails with SQLITE_BUSY_SNAPSHOT, without waiting, if the other process committed in between. The worker gzips an analysis before taking the lock. Migrations re-check `user_version` under the lock, and `openDb` retries the switch to WAL, because `pnpm dev` starts the API and the worker on a new database at the same moment.
 - 2026-10-17: The analyzer runs in its own process group, so Ctrl-C in `pnpm dev` reaches only the worker, which then kills it as an interrupted run. If the analyzer got the signal first, its death would count as a failed attempt.
 - 2026-10-17: `?page=` is capped at 1,000,000 so the SQL OFFSET stays a valid integer, and `WORKER_CONCURRENCY` must be a whole number of at least 1 or the worker refuses to start.
+- 2026-10-17: The home page is a landing page that describes the site and links to sign up or upload (developer's request). Its feature cards describe what the match page shows, so they change with it.
 
 ## Open questions
 None at this time.
