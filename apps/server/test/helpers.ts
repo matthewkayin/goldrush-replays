@@ -5,6 +5,7 @@ import type { LightMyRequestResponse } from "fastify";
 import { authResponseSchema, type User } from "@goldrush/shared";
 import { buildApp, type App } from "../src/app.ts";
 import { SESSION_COOKIE } from "../src/auth/session-cookie.ts";
+import { DEFAULT_ANALYZER_PATH } from "../src/config.ts";
 import { openDb } from "../src/db/connection.ts";
 
 // The real app on a fresh in-memory database, closed when the test ends.
@@ -20,7 +21,11 @@ export function buildTestAppWithDb(t: TestContext): {
   db: Database.Database;
 } {
   const db = openDb(":memory:");
-  const app = buildApp({ db, logger: false });
+  const app = buildApp({
+    db,
+    logger: false,
+    analyzerPath: DEFAULT_ANALYZER_PATH,
+  });
   t.after(async () => {
     await app.close();
     db.close();

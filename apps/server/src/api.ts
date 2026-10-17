@@ -6,7 +6,11 @@ const HOST = "127.0.0.1";
 
 const config = readConfig();
 const db = openDb(config.dbPath);
-const app = buildApp({ db, logger: true });
+const app = buildApp({
+  db,
+  logger: true,
+  analyzerPath: config.analyzerPath,
+});
 
 // `node --watch` sends SIGTERM before restarting.
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

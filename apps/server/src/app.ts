@@ -12,11 +12,14 @@ import type { ApiError } from "@goldrush/shared";
 import { registerCurrentUser } from "./auth/current-user.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { healthRoutes } from "./routes/health.ts";
+import { replayRoutes } from "./routes/replays.ts";
 
 export interface AppOptions {
   // The caller opens the database and closes it after the app.
   db: Database.Database;
   logger: boolean;
+  // The analyzer binary, which uploads run `analyzer header` with.
+  analyzerPath: string;
 }
 
 // What every route module receives when it is registered.
@@ -28,7 +31,7 @@ function errorBody(message: string): ApiError {
   return { message };
 }
 
-export function buildApp({ db, logger }: AppOptions) {
+export function buildApp({ db, logger, analyzerPath }: AppOptions) {
   const app = Fastify({ logger }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -57,6 +60,7 @@ export function buildApp({ db, logger }: AppOptions) {
   const routeOptions: RouteOptions = { db };
   app.register(healthRoutes, routeOptions);
   app.register(authRoutes, routeOptions);
+  app.register(replayRoutes, { ...routeOptions, analyzerPath });
 
   return app;
 }

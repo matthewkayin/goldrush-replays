@@ -1,7 +1,8 @@
 // Queries on the replays table. A replay is always read together with its
 // match_players rows, as the one `replaySchema` shape every endpoint returns.
+// The writes further down are for upload, choosing a player and the worker.
 import type Database from "better-sqlite3";
-import { replaySchema, type Replay } from "@goldrush/shared";
+import { replaySchema, type Replay, type ReplayStatus } from "@goldrush/shared";
 
 interface ReplayRow {
   id: number;
@@ -69,4 +70,125 @@ export function findReplays(db: Database.Database, ids: number[]): Replay[] {
     // and gives them their enum types.
     return [replaySchema.parse({ ...row, players })];
   });
+}
+
+export interface NewReplay {
+  uploaderUserId: number;
+  filename: string;
+  replayVersion: number;
+  mapType: string;
+}
+
+// Inserts a replay awaiting the uploader's player choice. Its file and
+// players go in replay_files and match_players, in the same transaction.
+export function insertReplay(db: Database.Database, replay: NewReplay): number {
+  const result = db
+    .prepare(
+      `INSERT INTO replays (uploader_user_id, original_filename, replay_version, map_type, uploaded_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(
+      replay.uploaderUserId,
+      replay.filename,
+      replay.replayVersion,
+      replay.mapType,
+      new Date().toISOString(),
+    );
+  return Number(result.lastInsertRowid);
+}
+
+export interface ReplayOwnership {
+  uploaderUserId: number;
+  status: ReplayStatus;
+}
+
+export function findReplayOwnership(
+  db: Database.Database,
+  id: number,
+): ReplayOwnership | null {
+  const row = db
+    .prepare<[number], ReplayOwnership>(
+      "SELECT uploader_user_id AS uploaderUserId, status FROM replays WHERE id = ?",
+    )
+    .get(id);
+  return row ?? null;
+}
+
+// The ids of one page of a user's replays, newest first. Read them with
+// findReplays.
+export function findUserReplayIds(
+  db: Database.Database,
+  userId: number,
+  limit: number,
+  offset: number,
+): number[] {
+  return db
+    .prepare<[number, number, number], { id: number }>(
+      `SELECT id FROM replays WHERE uploader_user_id = ?
+       ORDER BY uploaded_at DESC, id DESC LIMIT ? OFFSET ?`,
+    )
+    .all(userId, limit, offset)
+    .map(({ id }) => id);
+}
+
+export function countUserReplays(
+  db: Database.Database,
+  userId: number,
+): number {
+  return db
+    .prepare<[number], { n: number }>(
+      "SELECT count(*) AS n FROM replays WHERE uploader_user_id = ?",
+    )
+    .get(userId)!.n;
+}
+
+// Saves the uploader's player and moves the replay to `queued`. Insert its
+// job in the same transaction.
+export function setUploaderSlot(
+  db: Database.Database,
+  id: number,
+  slot: number,
+): void {
+  db.prepare(
+    "UPDATE replays SET uploader_slot = ?, status = 'queued' WHERE id = ?",
+  ).run(slot, id);
+}
+
+// For the worker's moves between `queued` and `processing`.
+export function setReplayStatus(
+  db: Database.Database,
+  id: number,
+  status: "queued" | "processing",
+): void {
+  db.prepare("UPDATE replays SET status = ? WHERE id = ?").run(status, id);
+}
+
+// Puts every replay the worker was processing back in the queue, for when
+// the worker restarts after stopping mid-job.
+export function requeueProcessingReplays(db: Database.Database): void {
+  db.prepare(
+    "UPDATE replays SET status = 'queued' WHERE status = 'processing'",
+  ).run();
+}
+
+export function markReplayProcessed(
+  db: Database.Database,
+  id: number,
+  durationTicks: number,
+): void {
+  db.prepare(
+    `UPDATE replays SET status = 'processed', error = NULL, duration_ticks = ?,
+       processed_at = ?
+     WHERE id = ?`,
+  ).run(durationTicks, new Date().toISOString(), id);
+}
+
+export function markReplayFailed(
+  db: Database.Database,
+  id: number,
+  error: string,
+): void {
+  db.prepare(
+    "UPDATE replays SET status = 'failed', error = ? WHERE id = ?",
+  ).run(error, id);
 }
