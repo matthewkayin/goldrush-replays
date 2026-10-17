@@ -12,6 +12,7 @@ import type { ApiError } from "@goldrush/shared";
 import { registerCurrentUser } from "./auth/current-user.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { healthRoutes } from "./routes/health.ts";
+import { matchRoutes } from "./routes/matches.ts";
 import { replayRoutes } from "./routes/replays.ts";
 
 export interface AppOptions {
@@ -61,6 +62,7 @@ export function buildApp({ db, logger, analyzerPath }: AppOptions) {
   app.register(healthRoutes, routeOptions);
   app.register(authRoutes, routeOptions);
   app.register(replayRoutes, { ...routeOptions, analyzerPath });
+  app.register(matchRoutes, routeOptions);
 
   return app;
 }
