@@ -65,11 +65,19 @@ docs/
 - Auth: username and password accounts that belong to the site and have nothing to do with Steam. Usernames are 3 to 20 characters from `A-Z a-z 0-9 _ -`. Passwords are 8 to 256 characters and are hashed with argon2id (the `argon2` package). Sessions live in an SQLite `sessions` table and are referenced by an httpOnly, SameSite=Lax cookie named `session` holding a random token. The table stores the token's SHA-256 hash, not the token. A session lasts 30 days from sign-in and isn't extended by use. Expired sessions are deleted whenever someone signs in.
   - Endpoints: `POST /api/auth/register` (201, signs the new user in; 409 if the username is taken), `POST /api/auth/login` (401 "Invalid username or password" for an unknown user or a wrong password alike), `POST /api/auth/logout` (deletes the session; fine when signed out) and `GET /api/auth/me` (`{ user }`, with `user: null` for visitors rather than a 401). Contracts are in `packages/shared/src/auth.ts`.
   - Every request gets `request.user` from the cookie. Routes that need a signed-in user use the `requireUser` preHandler, which answers 401 "Sign in required". In the web app, pages that need one go under the `RequireUser` route, which sends visitors to `/sign-in?next=<page>`.
+- Endpoints (Release 1). Contracts, including status codes, are in `packages/shared/src/api.ts`. API JSON is camelCase, except the analysis, which is the analyzer's snake_case passed through. Every error is `{ message }`. A route marked "signed in" answers 401 for visitors, and a `/:id` route answers 404 for a replay that doesn't exist.
+  - `POST /api/replays` (signed in, multipart, field `files` once per file, 5 MB per file): 200 with one result per file in upload order, `accepted` with the replay or `rejected` with a reason, even when every file is rejected. 400 when the request has no files.
+  - `POST /api/replays/:id/player` (signed in) with `{ slot }`: 200 with the replay, now `queued`. 404 when the replay isn't the user's, 409 when it isn't `awaiting_player`, 400 when no player has that slot.
+  - `GET /api/replays?page=N` (signed in): the user's replays, newest first, 20 per page, with `page`, `pageSize` and `total`.
+  - `GET /api/matches/:id` (public): the replay at any status, so the match page can show a processing state and poll.
+  - `GET /api/matches/:id/analysis` (public): the stored analysis, gunzipped. 404 "Analysis not ready" unless processed.
+  - `GET /api/matches/:id/replay` (public): the original `.rep` bytes as `application/octet-stream`, with `Content-Disposition: attachment` using the original filename.
+  - Every endpoint that returns a replay uses the same `replaySchema`: id, filename, uploadedAt, processedAt, mapType, replayVersion, durationTicks, status, error, uploaderSlot and players (slot, name, team, color, result, defeatedAtTick).
 - Job queue: a `jobs` table in SQLite. The worker polls about once a second and claims a job atomically (`UPDATE … WHERE status='queued' … RETURNING`). It reads the replay BLOB and pipes it to `analyzer analyze` on stdin. The analyzer gets a 120 s timeout, and worker concurrency is configurable (default 2). A job gets 3 attempts and then the replay is marked `failed`. Jobs left `running` from a crashed worker are requeued when the worker starts.
 
 ### Upload flow
 1. `POST /api/replays` (multipart, one or more files): for each file, the API pipes the bytes to `analyzer header`. A valid file is stored as a `replays` row plus a `replay_files` BLOB with status `awaiting_player`, and the response includes its player list. An invalid file is rejected with a reason, and the other files are still accepted.
-2. `POST /api/replays/:id/player` with `{ slot }`: the uploader says which player they were. The API saves `uploader_slot`, sets status `queued`, inserts a `jobs` row and responds right away.
+2. `POST /api/replays/:id/player` with `{ slot }`: the uploader says which player they were. The API saves `uploader_slot`, sets status `queued`, inserts a `jobs` row and responds right away with the updated replay.
 3. The worker processes the job and sets status `processed`, or `failed` with an error.
 
 ### Data model (initial)
@@ -268,6 +276,11 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-16: Sign-in answers the same 401 message for an unknown username and a wrong password, and checks a dummy hash for an unknown username, so neither the message nor the timing tells which usernames exist.
 - 2026-10-16: `GET /api/auth/me` answers 200 with `user: null` for visitors instead of 401, because checking who is signed in is routine for every page and not an error. `POST /api/auth/logout` answers `{ user: null }` so the web client, which always parses a JSON body, needs no special case.
 - 2026-10-16: The web app has one `RequireUser` route guard that sends visitors to the sign-in page and back afterwards, so the upload and "My replays" pages share it. `?next=` only accepts same-site paths.
+- 2026-10-16: API JSON is camelCase. The analysis endpoint passes the analyzer's snake_case JSON through unchanged, so it isn't converted twice.
+- 2026-10-16: One `replaySchema` serves list items, the match overview, the choose-player response and accepted uploads, so the web app has one replay type.
+- 2026-10-16: Upload answers 200 with a result per file even when every file is rejected, because a multi-file upload is judged file by file.
+- 2026-10-16: Match endpoints are public and keyed by replay id. The overview answers at every status, and the analysis answers 404 until the replay is processed.
+- 2026-10-16: The replay list uses page numbers, 20 per page.
 
 ## Open questions
 None at this time.
