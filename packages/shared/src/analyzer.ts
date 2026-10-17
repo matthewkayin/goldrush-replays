@@ -9,7 +9,9 @@ const count = z.number().int().nonnegative();
 const slot = z.number().int().min(0).max(3);
 
 export const mapTypeSchema = z.enum(["tombstone", "boulder", "klondike"]);
+export type MapType = z.infer<typeof mapTypeSchema>;
 export const playerColorSchema = z.enum(["blue", "red", "green", "purple"]);
+export type PlayerColor = z.infer<typeof playerColorSchema>;
 
 export const unitTypeSchema = z.enum([
   "miner",
@@ -24,6 +26,7 @@ export const unitTypeSchema = z.enum([
   "detective",
   "balloon",
 ]);
+export type UnitType = z.infer<typeof unitTypeSchema>;
 
 export const entityTypeSchema = z.enum([
   "goldmine",
@@ -41,6 +44,7 @@ export const entityTypeSchema = z.enum([
   "sheriffs",
   "landmine",
 ]);
+export type EntityType = z.infer<typeof entityTypeSchema>;
 
 export const upgradeSchema = z.enum([
   "war_wagon",
@@ -50,6 +54,7 @@ export const upgradeSchema = z.enum([
   "getaway_boots",
   "iron_sights",
 ]);
+export type Upgrade = z.infer<typeof upgradeSchema>;
 
 const playerFields = {
   slot,

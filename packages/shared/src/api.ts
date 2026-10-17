@@ -109,9 +109,10 @@ export const choosePlayerRequestSchema = z.object({
 export type ChoosePlayerRequest = z.infer<typeof choosePlayerRequestSchema>;
 
 // GET /api/replays?page=N (signed in): the user's replays, newest first,
-// `replayPageSize` per page.
+// `replayPageSize` per page. The maximum keeps the SQL OFFSET a valid
+// integer; a page past the end is just empty.
 export const replayListQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(1_000_000).default(1),
 });
 export type ReplayListQuery = z.infer<typeof replayListQuerySchema>;
 
