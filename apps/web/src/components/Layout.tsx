@@ -14,13 +14,25 @@ export function Layout() {
             to="/"
             underline="none"
             variant="h5"
-            sx={{ color: colors.yellow, textShadow: "2px 2px 4px #000b" }}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1.5,
+              color: colors.yellow,
+              textShadow: "2px 2px 4px #000b",
+            }}
           >
+            {/* The gold bar icon is also the favicon. */}
+            <Box
+              component="img"
+              src="/favicon.png"
+              alt=""
+              sx={{ height: 32, imageRendering: "pixelated" }}
+            />
             Gold Rush Replays
           </Link>
-          <Box sx={{ flexGrow: 1 }} />
           {/* Visitors see these too; the pages ask them to sign in. */}
-          <Box sx={{ display: "flex", gap: 1, mr: 2 }}>
+          <Box sx={{ display: "flex", gap: 1, ml: 4 }}>
             <Button color="inherit" component={RouterLink} to="/upload">
               Upload
             </Button>
@@ -28,6 +40,7 @@ export function Layout() {
               My replays
             </Button>
           </Box>
+          <Box sx={{ flexGrow: 1 }} />
           <AccountMenu />
         </Toolbar>
       </AppBar>
