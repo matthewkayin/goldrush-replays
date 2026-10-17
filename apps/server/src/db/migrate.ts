@@ -41,11 +41,21 @@ export function migrate(db: Database, sqlDir: string): void {
     );
   }
 
+  // The API and the worker both migrate when they open the database, and
+  // may start at the same moment. Each migration takes the write lock first
+  // (an IMMEDIATE transaction) and checks the version again under it, so a
+  // migration the other process just applied isn't run twice.
   for (const migration of migrations.slice(currentVersion)) {
     const sql = readFileSync(migration.path, "utf8");
     db.transaction(() => {
+      if (
+        (db.pragma("user_version", { simple: true }) as number) >=
+        migration.version
+      ) {
+        return;
+      }
       db.exec(sql);
       db.pragma(`user_version = ${migration.version}`);
-    })();
+    }).immediate();
   }
 }
