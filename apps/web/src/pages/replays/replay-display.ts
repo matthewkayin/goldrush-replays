@@ -1,4 +1,4 @@
-// How a replay's fields are shown on the upload and "My replays" pages.
+// How a replay's fields are shown on the upload and replay list pages.
 import type { MatchPlayer, Replay, ReplayStatus } from "@goldrush/shared";
 import { formatTick } from "../../display.ts";
 
@@ -21,6 +21,35 @@ export function uploaderResultLabel(replay: Replay): string {
     return "Loss";
   }
   return "–";
+}
+
+export type MatchFormat = "1v1" | "2v2" | "FFA" | "Other";
+
+// The format from team sizes, counting bots as players: two teams of one is
+// 1v1, two teams of two is 2v2, three or four players each on their own team
+// is FFA, and any other layout (2v1, 3v1, 2v1v1) is Other.
+export function matchFormat(players: Pick<MatchPlayer, "team">[]): MatchFormat {
+  const teamSizes = new Map<number, number>();
+  for (const { team } of players) {
+    teamSizes.set(team, (teamSizes.get(team) ?? 0) + 1);
+  }
+  const sizes = [...teamSizes.values()];
+  if (sizes.length === 2 && sizes.every((size) => size === 1)) {
+    return "1v1";
+  }
+  if (sizes.length === 2 && sizes.every((size) => size === 2)) {
+    return "2v2";
+  }
+  if (sizes.length >= 3 && sizes.every((size) => size === 1)) {
+    return "FFA";
+  }
+  return "Other";
+}
+
+// The players whose result is a win. Empty when nobody won (no player was
+// active at the end), which the list shows as "No winner".
+export function winners(players: MatchPlayer[]): MatchPlayer[] {
+  return players.filter((player) => player.result === "win");
 }
 
 export const statusDisplay: Record<

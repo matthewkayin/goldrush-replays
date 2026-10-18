@@ -7,6 +7,7 @@ import { replaySchema, type Replay, type ReplayStatus } from "@goldrush/shared";
 interface ReplayRow {
   id: number;
   filename: string;
+  uploaderUsername: string;
   uploadedAt: string;
   processedAt: string | null;
   mapType: string;
@@ -41,11 +42,13 @@ export function findReplays(db: Database.Database, ids: number[]): Replay[] {
   const idsJson = JSON.stringify(ids);
   const replayRows = db
     .prepare<[string], ReplayRow>(
-      `SELECT id, original_filename AS filename, uploaded_at AS uploadedAt,
+      `SELECT replays.id, original_filename AS filename,
+              users.username AS uploaderUsername, uploaded_at AS uploadedAt,
               processed_at AS processedAt, map_type AS mapType,
               replay_version AS replayVersion, duration_ticks AS durationTicks,
               status, error, uploader_slot AS uploaderSlot
-       FROM replays WHERE id IN (SELECT value FROM json_each(?))`,
+       FROM replays JOIN users ON users.id = replays.uploader_user_id
+       WHERE replays.id IN (SELECT value FROM json_each(?))`,
     )
     .all(idsJson);
   const playerRows = db
@@ -114,7 +117,31 @@ export function findReplayOwnership(
   return row ?? null;
 }
 
-// The ids of one page of a user's replays, newest first. Read them with
+// The ids of one page of processed replays from every uploader, newest
+// upload first. Read them with findReplays.
+export function findProcessedReplayIds(
+  db: Database.Database,
+  limit: number,
+  offset: number,
+): number[] {
+  return db
+    .prepare<[number, number], { id: number }>(
+      `SELECT id FROM replays WHERE status = 'processed'
+       ORDER BY uploaded_at DESC, id DESC LIMIT ? OFFSET ?`,
+    )
+    .all(limit, offset)
+    .map(({ id }) => id);
+}
+
+export function countProcessedReplays(db: Database.Database): number {
+  return db
+    .prepare<[], { n: number }>(
+      "SELECT count(*) AS n FROM replays WHERE status = 'processed'",
+    )
+    .get()!.n;
+}
+
+// The ids of one page of a user's replays at every status, newest first. Read them with
 // findReplays.
 export function findUserReplayIds(
   db: Database.Database,

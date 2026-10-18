@@ -1,5 +1,5 @@
-// Checks the "Upload a replay and say which player I was" story and the
-// replay list through the HTTP API, with the real analyzer.
+// Checks the "Upload a replay and say which player I was" story, the public
+// replay list and "My replays" through the HTTP API, with the real analyzer.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -15,6 +15,7 @@ import { buildTestApp, buildTestAppWithDb, registerUser } from "./helpers.ts";
 import {
   choosePlayer,
   postReplays,
+  queueTestReplay,
   readTestReplay,
   uploadTestReplay,
 } from "./replay-helpers.ts";
@@ -45,6 +46,7 @@ test("an uploaded replay is stored awaiting a player, with its players", async (
   assert.equal(replay.mapType, "tombstone");
   assert.equal(replay.replayVersion, 0);
   assert.equal(replay.uploaderSlot, null);
+  assert.equal(replay.uploaderUsername, user.username);
   assert.deepEqual(replay.players, [
     {
       slot: 0,
@@ -192,7 +194,7 @@ test("an upload with no files is a 400", async (t) => {
   apiErrorSchema.parse(notMultipart.json());
 });
 
-test("a visitor can't upload, choose a player or list replays", async (t) => {
+test("a visitor can't upload, choose a player or list their own replays", async (t) => {
   const app = buildTestApp(t);
   const signIn = { message: "Sign in required" };
 
@@ -206,7 +208,7 @@ test("a visitor can't upload, choose a player or list replays", async (t) => {
   assert.equal(choose.statusCode, 401);
   assert.deepEqual(choose.json(), signIn);
 
-  const list = await listReplays(app, undefined);
+  const list = await listReplays(app, undefined, "?mine=true");
   assert.equal(list.statusCode, 401);
   assert.deepEqual(list.json(), signIn);
 });
@@ -283,7 +285,7 @@ test("choosing a slot no player has is a 400, and the replay still awaits a play
   }
 
   const [replay] = replayPageSchema.parse(
-    (await listReplays(app, token)).json(),
+    (await listReplays(app, token, "?mine=true")).json(),
   ).replays;
   assert.equal(replay?.status, "awaiting_player");
 });
@@ -301,7 +303,77 @@ test("a non-numeric replay id is a 400", async (t) => {
   apiErrorSchema.parse(response.json());
 });
 
-test("the replay list shows only the user's replays, newest first, a page at a time", async (t) => {
+test("the public replay list shows processed replays from every uploader, newest first, a page at a time", async (t) => {
+  const { app, db } = buildTestAppWithDb(t);
+  const { token } = await registerUser(app, "stew");
+  const { token: otherToken } = await registerUser(app, "bread");
+
+  // A replay at each status other than processed, which the list leaves out.
+  await uploadTestReplay(app, token, "test_loss.rep");
+  const failed = await queueTestReplay(app, token, "test_loss.rep", 0);
+  db.prepare("UPDATE replays SET status = 'failed' WHERE id = ?").run(
+    failed.id,
+  );
+  await queueTestReplay(app, otherToken, "test_loss.rep", 0);
+
+  // One more processed replay than fits on a page, alternating uploaders,
+  // with upload times spread so the order doesn't rely on ids.
+  const count = replayPageSize + 1;
+  const processedIds: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const replay = await queueTestReplay(
+      app,
+      i % 2 === 0 ? token : otherToken,
+      "test_loss.rep",
+      0,
+    );
+    db.prepare(
+      "UPDATE replays SET status = 'processed', uploaded_at = ? WHERE id = ?",
+    ).run(new Date(Date.UTC(2026, 9, 1 + i)).toISOString(), replay.id);
+    processedIds.push(replay.id);
+  }
+  const newestFirst = [...processedIds].reverse();
+
+  // Signed in or not, the list is the same.
+  for (const viewer of [undefined, token]) {
+    const first = replayPageSchema.parse(
+      (await listReplays(app, viewer)).json(),
+    );
+    assert.equal(first.page, 1);
+    assert.equal(first.pageSize, replayPageSize);
+    assert.equal(first.total, count);
+    assert.deepEqual(
+      first.replays.map((replay) => replay.id),
+      newestFirst.slice(0, replayPageSize),
+    );
+    assert.deepEqual(
+      first.replays.slice(0, 2).map((replay) => replay.uploaderUsername),
+      ["stew", "bread"],
+    );
+
+    const second = replayPageSchema.parse(
+      (await listReplays(app, viewer, "?page=2")).json(),
+    );
+    assert.deepEqual(
+      second.replays.map((replay) => replay.id),
+      newestFirst.slice(replayPageSize),
+    );
+  }
+});
+
+test("an empty site's public replay list is empty", async (t) => {
+  const app = buildTestApp(t);
+  const response = await listReplays(app, undefined);
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), {
+    replays: [],
+    page: 1,
+    pageSize: replayPageSize,
+    total: 0,
+  });
+});
+
+test("my replays shows only the user's replays, unprocessed ones included, newest first, a page at a time", async (t) => {
   const { app, db } = buildTestAppWithDb(t);
   const { token } = await registerUser(app, "stew");
   const { token: otherToken } = await registerUser(app, "bread");
@@ -332,7 +404,9 @@ test("the replay list shows only the user's replays, newest first, a page at a t
   });
   const newestFirst = [...uploadedIds].reverse();
 
-  const first = replayPageSchema.parse((await listReplays(app, token)).json());
+  const first = replayPageSchema.parse(
+    (await listReplays(app, token, "?mine=true")).json(),
+  );
   assert.equal(first.page, 1);
   assert.equal(first.pageSize, replayPageSize);
   assert.equal(first.total, count);
@@ -343,7 +417,7 @@ test("the replay list shows only the user's replays, newest first, a page at a t
   assert.equal(first.replays[0]?.players.length, 2);
 
   const second = replayPageSchema.parse(
-    (await listReplays(app, token, "?page=2")).json(),
+    (await listReplays(app, token, "?mine=true&page=2")).json(),
   );
   assert.deepEqual(
     second.replays.map((replay) => replay.id),
@@ -351,16 +425,16 @@ test("the replay list shows only the user's replays, newest first, a page at a t
   );
 
   const pastTheEnd = replayPageSchema.parse(
-    (await listReplays(app, token, "?page=3")).json(),
+    (await listReplays(app, token, "?mine=true&page=3")).json(),
   );
   assert.deepEqual(pastTheEnd.replays, []);
   assert.equal(pastTheEnd.total, count);
 });
 
-test("a new user's replay list is empty", async (t) => {
+test("a new user's own replay list is empty", async (t) => {
   const app = buildTestApp(t);
   const { token } = await registerUser(app);
-  const response = await listReplays(app, token);
+  const response = await listReplays(app, token, "?mine=true");
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json(), {
     replays: [],
@@ -380,6 +454,7 @@ test("an invalid page number is a 400", async (t) => {
     "?page=1.5",
     // Too large for the SQL OFFSET.
     "?page=1e300",
+    "?mine=maybe",
   ]) {
     const response = await listReplays(app, token, query);
     assert.equal(response.statusCode, 400, query);

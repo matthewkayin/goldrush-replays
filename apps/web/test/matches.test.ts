@@ -65,6 +65,7 @@ function player(fields: Partial<MatchPlayer> & { slot: number }): MatchPlayer {
 const queuedReplay: Replay = {
   id: 7,
   filename: "test_team.rep",
+  uploaderUsername: "stew",
   uploadedAt: "2026-10-17T10:00:00.000Z",
   processedAt: null,
   mapType: "tombstone",

@@ -1,6 +1,7 @@
-// The uploader's side of replays: uploading .rep files, choosing which
-// player they were (which queues the analysis), and listing their replays.
-// The public match endpoints are in matches.ts.
+// Uploading .rep files, choosing which player the uploader was (which
+// queues the analysis), and the replay list: public for processed replays,
+// or the signed-in user's own at every status. The public match endpoints
+// are in matches.ts.
 import multipart from "@fastify/multipart";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import type Database from "better-sqlite3";
@@ -24,7 +25,9 @@ import { insertJob } from "../db/jobs.ts";
 import { insertMatchPlayers } from "../db/match-players.ts";
 import { insertReplayFile } from "../db/replay-files.ts";
 import {
+  countProcessedReplays,
   countUserReplays,
+  findProcessedReplayIds,
   findReplay,
   findReplayOwnership,
   findReplays,
@@ -146,26 +149,30 @@ export const replayRoutes: FastifyPluginAsyncZod<ReplayRouteOptions> = async (
   app.get(
     "/api/replays",
     {
-      preHandler: requireUser,
       schema: {
         querystring: replayListQuerySchema,
         response: { 200: replayPageSchema },
       },
     },
     async (request) => {
-      const userId = request.user!.id;
-      const { page } = request.query;
-      const ids = findUserReplayIds(
-        db,
-        userId,
-        replayPageSize,
-        (page - 1) * replayPageSize,
-      );
+      const { page, mine } = request.query;
+      const offset = (page - 1) * replayPageSize;
+      let ids: number[];
+      let total: number;
+      if (mine) {
+        await requireUser(request);
+        const userId = request.user!.id;
+        ids = findUserReplayIds(db, userId, replayPageSize, offset);
+        total = countUserReplays(db, userId);
+      } else {
+        ids = findProcessedReplayIds(db, replayPageSize, offset);
+        total = countProcessedReplays(db);
+      }
       return {
         replays: findReplays(db, ids),
         page,
         pageSize: replayPageSize,
-        total: countUserReplays(db, userId),
+        total,
       };
     },
   );

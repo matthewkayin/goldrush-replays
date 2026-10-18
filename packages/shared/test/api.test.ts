@@ -23,6 +23,13 @@ test("replayListQuerySchema defaults to page 1 and coerces strings", () => {
   assert.ok(!replayListQuerySchema.safeParse({ page: "x" }).success);
 });
 
+test("replayListQuerySchema defaults to the public list and parses mine", () => {
+  assert.equal(replayListQuerySchema.parse({}).mine, false);
+  assert.equal(replayListQuerySchema.parse({ mine: "true" }).mine, true);
+  assert.equal(replayListQuerySchema.parse({ mine: "false" }).mine, false);
+  assert.ok(!replayListQuerySchema.safeParse({ mine: "maybe" }).success);
+});
+
 test("replayIdParamsSchema coerces positive integer ids", () => {
   assert.equal(replayIdParamsSchema.parse({ id: "7" }).id, 7);
   assert.ok(!replayIdParamsSchema.safeParse({ id: "0" }).success);
@@ -39,6 +46,7 @@ test("uploadResultSchema accepts an accepted upload built from a header", () => 
     replay: {
       id: 1,
       filename: "test_loss.rep",
+      uploaderUsername: "stew",
       uploadedAt: new Date().toISOString(),
       processedAt: null,
       mapType: header.map_type,

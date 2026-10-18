@@ -78,7 +78,7 @@ export function UploadPage() {
         />
       ))}
       <Typography>
-        <Link component={RouterLink} to="/replays">
+        <Link component={RouterLink} to="/replays?mine=true">
           Go to My replays
         </Link>
       </Typography>

@@ -64,6 +64,7 @@ export type MatchPlayer = z.infer<typeof matchPlayerSchema>;
 export const replaySchema = z.object({
   id: z.number().int().positive(),
   filename: z.string(),
+  uploaderUsername: z.string(),
   uploadedAt: z.iso.datetime(),
   processedAt: z.iso.datetime().nullable(),
   mapType: mapTypeSchema,
@@ -108,11 +109,14 @@ export const choosePlayerRequestSchema = z.object({
 });
 export type ChoosePlayerRequest = z.infer<typeof choosePlayerRequestSchema>;
 
-// GET /api/replays?page=N (signed in): the user's replays, newest first,
-// `replayPageSize` per page. The maximum keeps the SQL OFFSET a valid
-// integer; a page past the end is just empty.
+// GET /api/replays?page=N (public): processed replays from every uploader,
+// newest upload first, `replayPageSize` per page. With `mine=true` (signed
+// in, 401 otherwise) it lists the user's own replays at every status
+// instead. The page maximum keeps the SQL OFFSET a valid integer; a page
+// past the end is just empty.
 export const replayListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
+  mine: z.stringbool().default(false),
 });
 export type ReplayListQuery = z.infer<typeof replayListQuerySchema>;
 

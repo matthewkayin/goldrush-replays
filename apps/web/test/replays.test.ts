@@ -1,4 +1,4 @@
-// Checks the replay API calls the upload and "My replays" pages rely on,
+// Checks the replay API calls the upload and replay list pages rely on,
 // when the list polls, and the plain functions behind what the pages show.
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -15,13 +15,16 @@ import {
   uploadReplays,
 } from "../src/api/replays.ts";
 import {
+  listParamsFromSearch,
+  listSearchParams,
   pageCount,
-  pageFromSearchParam,
 } from "../src/pages/replays/page-param.ts";
 import {
   formatDuration,
+  matchFormat,
   uploaderPlayer,
   uploaderResultLabel,
+  winners,
 } from "../src/pages/replays/replay-display.ts";
 import { checkReplayFiles } from "../src/pages/upload/check-files.ts";
 import { stubFetch } from "./stub-fetch.ts";
@@ -30,6 +33,7 @@ function makeReplay(overrides: Partial<Replay> = {}): Replay {
   return {
     id: 7,
     filename: "test_loss.rep",
+    uploaderUsername: "stew",
     uploadedAt: "2026-10-17T12:00:00.000Z",
     processedAt: null,
     mapType: "tombstone",
@@ -103,14 +107,23 @@ test("choosePlayer posts the slot and returns the queued replay", async (t) => {
   assert.deepEqual(await requests[0]!.json(), { slot: 1 });
 });
 
-test("fetchReplayPage asks for the page and parses it", async (t) => {
+test("fetchReplayPage asks for the page of the public list and parses it", async (t) => {
   const page = { ...makePage([makeReplay()]), page: 3, total: 41 };
   const requests = stubFetch(t, Response.json(page));
-  assert.deepEqual(await fetchReplayPage(3), page);
+  assert.deepEqual(await fetchReplayPage(3, false), page);
   assert.equal(requests[0]!.method, "GET");
   const url = new URL(requests[0]!.url);
   assert.equal(url.pathname, "/api/replays");
   assert.equal(url.searchParams.get("page"), "3");
+  assert.equal(url.searchParams.get("mine"), null);
+});
+
+test("fetchReplayPage asks for the user's own replays when mine is set", async (t) => {
+  const requests = stubFetch(t, Response.json(makePage([])));
+  await fetchReplayPage(2, true);
+  const url = new URL(requests[0]!.url);
+  assert.equal(url.searchParams.get("page"), "2");
+  assert.equal(url.searchParams.get("mine"), "true");
 });
 
 test("the list polls only while a replay on it is queued or processing", () => {
@@ -180,13 +193,56 @@ test("checkReplayFiles rejects files over the size limit and non-.rep files", ()
   ]);
 });
 
-test("pageFromSearchParam falls back to page 1 for anything but a page number", () => {
-  assert.equal(pageFromSearchParam(null), 1);
-  assert.equal(pageFromSearchParam("3"), 3);
-  assert.equal(pageFromSearchParam("0"), 1);
-  assert.equal(pageFromSearchParam("-2"), 1);
-  assert.equal(pageFromSearchParam("1.5"), 1);
-  assert.equal(pageFromSearchParam("abc"), 1);
+test("listParamsFromSearch falls back to page 1 for anything but a page number", () => {
+  const pageOf = (query: string) =>
+    listParamsFromSearch(new URLSearchParams(query)).page;
+  assert.equal(pageOf(""), 1);
+  assert.equal(pageOf("page=3"), 3);
+  assert.equal(pageOf("page=0"), 1);
+  assert.equal(pageOf("page=-2"), 1);
+  assert.equal(pageOf("page=1.5"), 1);
+  assert.equal(pageOf("page=abc"), 1);
+});
+
+test("listParamsFromSearch reads mine, and a bad mine doesn't reset the page", () => {
+  const params = (query: string) =>
+    listParamsFromSearch(new URLSearchParams(query));
+  assert.deepEqual(params(""), { page: 1, mine: false });
+  assert.deepEqual(params("mine=true&page=2"), { page: 2, mine: true });
+  assert.deepEqual(params("mine=false"), { page: 1, mine: false });
+  assert.deepEqual(params("mine=maybe&page=4"), { page: 4, mine: false });
+});
+
+test("listSearchParams leaves out defaults and round-trips", () => {
+  assert.equal(listSearchParams({ page: 1, mine: false }).toString(), "");
+  assert.equal(listSearchParams({ page: 3, mine: false }).toString(), "page=3");
+  for (const params of [
+    { page: 1, mine: true },
+    { page: 5, mine: true },
+    { page: 2, mine: false },
+  ]) {
+    assert.deepEqual(listParamsFromSearch(listSearchParams(params)), params);
+  }
+});
+
+test("matchFormat works the format out from team sizes", () => {
+  const teams = (...layout: number[]) => layout.map((team) => ({ team }));
+  assert.equal(matchFormat(teams(0, 1)), "1v1");
+  assert.equal(matchFormat(teams(0, 0, 1, 1)), "2v2");
+  assert.equal(matchFormat(teams(0, 1, 2)), "FFA");
+  assert.equal(matchFormat(teams(0, 1, 2, 3)), "FFA");
+  assert.equal(matchFormat(teams(0, 0, 1)), "Other");
+  assert.equal(matchFormat(teams(0, 0, 0, 1)), "Other");
+  assert.equal(matchFormat(teams(0, 0, 1, 2)), "Other");
+  assert.equal(matchFormat(teams(0, 0)), "Other");
+});
+
+test("winners are the players with a win, and none when everyone lost", () => {
+  const [first, second] = makeReplay().players;
+  const won = { ...first!, result: "win" as const };
+  const lost = { ...second!, result: "loss" as const };
+  assert.deepEqual(winners([won, lost]), [won]);
+  assert.deepEqual(winners([{ ...won, result: "loss" }, lost]), []);
 });
 
 test("pageCount rounds up and is at least 1", () => {

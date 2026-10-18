@@ -98,6 +98,7 @@ test("the overview answers a processed replay with its results", async (t) => {
   assert.equal(replay.id, id);
   assert.equal(replay.status, "processed");
   assert.equal(replay.uploaderSlot, 0);
+  assert.equal(replay.uploaderUsername, "stew");
   assert.equal(replay.durationTicks, savedAnalysis.duration_ticks);
   assert.deepEqual(
     replay.players.map(({ name, team, color, result }) => [

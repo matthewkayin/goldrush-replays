@@ -1,7 +1,7 @@
-// Calls to /api/replays and the hooks the upload and "My replays" pages use.
+// Calls to /api/replays and the hooks the upload and replay list pages use.
 // Each page of the list lives in the TanStack Query cache under
-// replayPageKey(page), and uploads and player choices invalidate every page,
-// since either one changes what the list shows.
+// replayPageKey(page, mine), and uploads and player choices invalidate every
+// page, since either one changes what the list shows.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   replayPageSchema,
@@ -16,8 +16,8 @@ import { apiGet, apiPost } from "./client.ts";
 
 const replaysKey = ["replays"] as const;
 
-export function replayPageKey(page: number) {
-  return [...replaysKey, page] as const;
+export function replayPageKey(page: number, mine: boolean) {
+  return [...replaysKey, { page, mine }] as const;
 }
 
 // How often the list is refetched while a replay on it is being analyzed.
@@ -38,8 +38,14 @@ export function choosePlayer(replayId: number, slot: number): Promise<Replay> {
   return apiPost(`/api/replays/${replayId}/player`, { slot }, replaySchema);
 }
 
-export function fetchReplayPage(page: number): Promise<ReplayPage> {
-  return apiGet(`/api/replays?page=${page}`, replayPageSchema);
+// `mine` lists the signed-in user's own replays at every status instead of
+// processed replays from everyone.
+export function fetchReplayPage(
+  page: number,
+  mine: boolean,
+): Promise<ReplayPage> {
+  const mineParam = mine ? "&mine=true" : "";
+  return apiGet(`/api/replays?page=${page}${mineParam}`, replayPageSchema);
 }
 
 // True while the worker still has to finish a replay on the page, so the
@@ -50,10 +56,10 @@ export function pageHasPendingAnalysis(page: ReplayPage): boolean {
   );
 }
 
-export function useReplayPage(page: number) {
+export function useReplayPage(page: number, mine: boolean) {
   return useQuery({
-    queryKey: replayPageKey(page),
-    queryFn: () => fetchReplayPage(page),
+    queryKey: replayPageKey(page, mine),
+    queryFn: () => fetchReplayPage(page, mine),
     refetchInterval: (query) =>
       query.state.data && pageHasPendingAnalysis(query.state.data)
         ? replayPollIntervalMs

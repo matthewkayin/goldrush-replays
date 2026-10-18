@@ -45,6 +45,7 @@ test("reads a new replay with its players in slot order", () => {
   assert.deepEqual(findReplay(db, replayId), {
     id: replayId,
     filename: "test.rep",
+    uploaderUsername: "stew",
     uploadedAt: "2026-10-17T10:00:00.000Z",
     processedAt: null,
     mapType: "tombstone",

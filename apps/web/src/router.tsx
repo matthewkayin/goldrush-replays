@@ -20,12 +20,10 @@ export const router = createBrowserRouter([
       { path: "/sign-in", element: <SignInPage /> },
       { path: "/register", element: <RegisterPage /> },
       { path: "/matches/:id", element: <MatchPage /> },
+      { path: "/replays", element: <ReplaysPage /> },
       {
         element: <RequireUser />,
-        children: [
-          { path: "/upload", element: <UploadPage /> },
-          { path: "/replays", element: <ReplaysPage /> },
-        ],
+        children: [{ path: "/upload", element: <UploadPage /> }],
       },
       { path: "*", element: <NotFoundPage /> },
     ],

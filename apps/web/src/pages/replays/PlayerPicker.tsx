@@ -10,7 +10,7 @@ interface PlayerPickerProps {
 }
 
 // Asks which player the uploader was, one button per player. Shared by the
-// upload page and "My replays".
+// upload page and the replay list's "My replays" view.
 export function PlayerPicker({ replay, onChosen }: PlayerPickerProps) {
   const choose = useChoosePlayer();
 

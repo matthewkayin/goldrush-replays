@@ -31,13 +31,13 @@ export function Layout() {
             />
             Gold Rush Replays
           </Link>
-          {/* Visitors see these too; the pages ask them to sign in. */}
+          {/* Visitors see these too; the upload page asks them to sign in. */}
           <Box sx={{ display: "flex", gap: 1, ml: 4 }}>
+            <Button color="inherit" component={RouterLink} to="/replays">
+              Replays
+            </Button>
             <Button color="inherit" component={RouterLink} to="/upload">
               Upload
-            </Button>
-            <Button color="inherit" component={RouterLink} to="/replays">
-              My replays
             </Button>
           </Box>
           <Box sx={{ flexGrow: 1 }} />

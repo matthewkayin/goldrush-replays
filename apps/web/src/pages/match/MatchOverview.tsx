@@ -16,8 +16,8 @@ import { PlayerName } from "../../components/PlayerName.tsx";
 import { formatTick, mapNames, teamName } from "../../display.ts";
 import { describeWinner } from "./match-data.ts";
 
-// The match header: map, duration, winner, the download link, and the
-// players with their teams and results. Shown at every status; results and
+// The match header: map, duration, upload date and uploader, winner, the
+// download link, and the players with their teams and results. Shown at every status; results and
 // duration appear once the replay is processed.
 export function MatchOverview({ replay }: { replay: Replay }) {
   const winner = describeWinner(replay.players);
@@ -55,6 +55,7 @@ export function MatchOverview({ replay }: { replay: Replay }) {
         <Chip
           label={`Uploaded ${new Date(replay.uploadedAt).toLocaleString()}`}
         />
+        <Chip label={`Uploaded by ${replay.uploaderUsername}`} />
         {winner && <Chip color="primary" label={winner} />}
       </Box>
       <Table size="small">
