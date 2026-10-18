@@ -68,7 +68,7 @@ docs/
 - Endpoints (Release 1). Contracts, including status codes, are in `packages/shared/src/api.ts`. API JSON is camelCase, except the analysis, which is the analyzer's snake_case passed through. Every error is `{ message }`. A route marked "signed in" answers 401 for visitors, and a `/:id` route answers 404 for a replay that doesn't exist.
   - `POST /api/replays` (signed in, multipart, field `files` once per file, 5 MB per file): 200 with one result per file in upload order, `accepted` with the replay or `rejected` with a reason, even when every file is rejected. 400 when the request has no files.
   - `POST /api/replays/:id/player` (signed in) with `{ slot }`: 200 with the replay, now `queued`. 404 when the replay isn't the user's, 409 when it isn't `awaiting_player`, 400 when no player has that slot.
-  - `GET /api/replays?page=N` (signed in): the user's replays, newest first, 20 per page, with `page`, `pageSize` and `total`.
+  - `GET /api/replays?page=N` (signed in): the user's replays, newest first, 20 per page, with `page`, `pageSize` and `total`. Release 2 makes this list public and adds filters (see Release 2).
   - `GET /api/matches/:id` (public): the replay at any status, so the match page can show a processing state and poll.
   - `GET /api/matches/:id/analysis` (public): the stored analysis, gunzipped. 404 "Analysis not ready" unless processed.
   - `GET /api/matches/:id/replay` (public): the original `.rep` bytes as `application/octet-stream`, with `Content-Disposition: attachment` using the original filename.
@@ -205,6 +205,48 @@ As a player, I want to download the original replay file from a match page, so t
 Acceptance criteria:
 - WHEN anyone clicks "Download" on a match page THE SYSTEM SHALL return the original `.rep` bytes from the database, using the original filename
 
+## Release 2: Global replays and profiles
+**Outcome:** anyone, signed in or not, can browse every replay on the site, filter the list to find a match, and open a player's profile to see their stats.
+
+**Users:** players who want to watch replays others have uploaded, and new visitors who want to see what kind of replays the site has.
+
+Release 2 follows the Constraints above. In particular, a user's stats only ever come from replays they uploaded, as the player they chose (`slot = replays.uploader_slot`), and in-replay player names are never linked to accounts.
+
+### Rules shared by the stories
+- **What's public.** The global list and profiles show only `processed` replays. A user's own replays at every status (awaiting player, queued, processing, failed) appear only in their "My replays" view.
+- **Format** is worked out from team sizes, counting bots as players: two teams of one is **1v1**, two teams of two is **2v2**, three or four players each on their own team is **FFA**, and any other layout (2v1, 3v1, 2v1v1) is **Other**.
+- **Winners** are the players whose `result` is `win`. When nobody has a win (no player active at the end, see the win/loss rule), the list shows "No winner".
+- **Text filters** (filename, player name, uploader) match case-insensitively anywhere in the value: "kay" matches "Kayin" and "xKAYx". `%` and `_` typed by the user are matched literally.
+- **Profile URL** is `/users/:username`, public. An unknown username shows the Not Found page.
+
+### Story: Browse all replays
+As anyone visiting the site, I want a "Replays" page in the navigation, so that I can browse every replay on the site.
+Acceptance criteria:
+- THE SYSTEM SHALL show the navigation as "Replays", then "Upload", then (for signed-in users only) "Profile", which opens their own profile. "My replays" is no longer a navigation item
+- WHEN anyone (signed in or not) opens "Replays" THE SYSTEM SHALL list processed replays from every uploader, newest upload first, 20 per page. This is the default view for signed-in users too
+- THE SYSTEM SHALL show for each replay: upload date, players (in their colors), map, format, duration, winners, and the uploader's username linking to their profile
+- WHEN anyone opens a match page THE SYSTEM SHALL show "Uploaded by <username>" linking to the uploader's profile, as well as marking which player the uploader was
+
+### Story: Filter replays
+As anyone visiting the site, I want to filter the replay list, so that I can find the replay I'm looking for.
+Acceptance criteria:
+- WHEN a signed-in user turns on "My replays" THE SYSTEM SHALL show only replays they uploaded, at every status, with each one's status and their own result. Replays awaiting a player choice prompt the user to choose their player, failed replays show the error, and queued or processing ones update without a reload, as the Release 1 "My replays" page does
+- WHEN a user types an uploader name THE SYSTEM SHALL show only replays whose uploader's username contains it
+- WHEN a user types a filename THE SYSTEM SHALL show only replays whose original filename contains it
+- WHEN a user types a player name THE SYSTEM SHALL show only replays with a player whose in-replay name contains it, whoever uploaded them. This is a text match on `match_players.name` and is never linked to accounts
+- WHEN a user picks a format (1v1, 2v2, FFA, Other) THE SYSTEM SHALL show only replays of that format
+- WHEN a user picks an upload date range THE SYSTEM SHALL show only replays uploaded within it. "From" and "To" are whole days in the viewer's time zone, both inclusive, and either can be left empty. The filter is labelled "Uploaded", because replays carry no match date
+- WHEN more than one filter is set THE SYSTEM SHALL show only replays matching all of them
+- THE SYSTEM SHALL keep the filters and page in the URL query string, so reloading, the back button and shared links keep them, and SHALL go back to page 1 whenever a filter changes
+
+### Story: Player profiles
+As a player, I want a profile page with my stats, so that I can track how I'm doing. As anyone visiting the site, I want to see other players' profiles and stats.
+Acceptance criteria:
+- WHEN anyone (signed in or not) opens `/users/:username` THE SYSTEM SHALL show the username, games played, wins, losses, win rate and average APM
+- THE SYSTEM SHALL count only the user's processed uploads, using only the user's own player in each (`slot = uploader_slot`). Win rate is wins ÷ games. Average APM is the mean of the user's per-match `apm`. A user with no processed replays shows 0 games and "—" for win rate and APM
+- THE SYSTEM SHALL list the user's 5 newest processed replays with the same columns as the global list, plus the user's own result
+- THE SYSTEM SHALL link from the profile ("See all replays") to the "Replays" page filtered to exactly that user's uploads. This filter matches the account exactly, unlike the uploader text filter, so "Kay" doesn't also bring in "Kayin"
+
 ## Test replays
 `analyzer/test_replays/` holds the developer's sample replays. Each has its expected analyzer output saved next to it.
 - `test_ffa.rep`: 4-player free-for-all on Klondike, about 18 minutes.
@@ -218,8 +260,7 @@ The developer will provide more replays on request. Ask for them when a story ne
 - a match where the uploader leaves early
 
 ## Later
-These are agreed but not part of Release 1. Build nothing for them yet, but the data model above is designed with them in mind.
-- **Player profiles:** a page per user listing their matches and their aggregate stats, as the uploader's player only.
+These are agreed but not part of Release 1 or Release 2. Build nothing for them yet, but the data model above is designed with them in mind. (Player profiles were listed here and are now part of Release 2.)
 - **Cross-match trends:** a user's APM, income, win rate and similar stats over time and by map type.
 - **Leaderboards:** win rate, with a minimum number of games to qualify.
 - **Map heatmap:** unit positions and fights over the map. This needs position sampling in the analyzer.
@@ -236,6 +277,7 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - Support for replay versions other than those the analyzer explicitly knows about (currently `0`)
 - Playing replays back in the browser (for example by compiling the simulation to WebAssembly)
 - Production deployment, scaling, other databases, or object storage
+- Release 2: filtering by map, sorting the replay list other than newest upload first, editable profile content (bio, avatar), and profile stats beyond those its story lists
 
 ## Decisions
 - 2026-10-15: Replay analysis stays in C++ and reuses the game's simulation code, because a replay holds only inputs and has to be simulated deterministically with the game's own logic.
@@ -308,6 +350,18 @@ These are agreed but not part of Release 1. Build nothing for them yet, but the 
 - 2026-10-17: `?page=` is capped at 1,000,000 so the SQL OFFSET stays a valid integer, and `WORKER_CONCURRENCY` must be a whole number of at least 1 or the worker refuses to start.
 - 2026-10-17: The home page is a landing page that describes the site and links to sign up or upload (developer's request). Its feature cards describe what the match page shows, so they change with it.
 - 2026-10-17: The match page's population chart shows only population used, not max population (developer's request). The analysis still records `max_population`. The "Over time" section has a toggle per player that shows or hides that player on every chart at once, plus "Show all". The choice isn't saved and resets on reload.
+- 2026-10-18: Release 2 (global replay list, filtering, player profiles) is specified in this PRD rather than in a separate doc, so its constraints, data model and decisions stay in one place. Player profiles move from "Later" into Release 2.
+- 2026-10-18: The global list and profiles show only processed replays. A user's replays at other statuses appear only in their "My replays" view, because someone else's unprocessed or failed replay has nothing to show.
+- 2026-10-18: "Replays" opens on the global list for everyone, signed in or not. "My replays" becomes a filter on that page, and the only view with statuses, the choose-player prompt and the user's own result.
+- 2026-10-18: The global list's result column shows the winners, because the viewer usually isn't in the match. A replay where every player lost shows "No winner".
+- 2026-10-18: "Search by name" searches the original filename, since replays have no title. Uploader and player name are separate filters.
+- 2026-10-18: Filename, player-name and uploader filters match case-insensitively anywhere in the value. The profile's "See all replays" link filters on the exact account instead.
+- 2026-10-18: The date filter uses the upload date, because the replay header has no match date. It takes whole days in the viewer's time zone, both ends inclusive and optional.
+- 2026-10-18: Filters combine with AND and live in the URL query string, so the profile can link to a filtered list and filtered lists can be bookmarked and shared.
+- 2026-10-18: Profiles are public at `/users/:username`. They're linked from the uploader on the replay list and the match page, and from a "Profile" navigation item that only signed-in users see (order: Replays, Upload, Profile).
+- 2026-10-18: Profiles show games, wins, losses, win rate and average APM, from processed uploads and the uploader's slot only, plus the 5 newest processed replays.
+- 2026-10-18: The list adds a format filter (1v1, 2v2, FFA, Other), worked out from team sizes with bots counted as players. Map filter, sortable columns and editable profiles are out of scope.
+- 2026-10-18: `docs/analyzer-plan.md` and `docs/release1-workflow.md` are retired now that Release 1 is built. The decisions that cite them are kept as history.
 
 ## Open questions
 None at this time.
