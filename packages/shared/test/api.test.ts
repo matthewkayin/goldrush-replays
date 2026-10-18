@@ -1,10 +1,11 @@
 // Covers the parts of the API contracts that the server and web app rely
-// on: query and param coercion, the upload result union, and that the
-// replay statuses match the database.
+// on: query and param coercion, the list's filters and format, the upload
+// result union, and that the replay statuses match the database.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  matchFormat,
   replayHeaderSchema,
   replayIdParamsSchema,
   replayListQuerySchema,
@@ -28,6 +29,50 @@ test("replayListQuerySchema defaults to the public list and parses mine", () => 
   assert.equal(replayListQuerySchema.parse({ mine: "true" }).mine, true);
   assert.equal(replayListQuerySchema.parse({ mine: "false" }).mine, false);
   assert.ok(!replayListQuerySchema.safeParse({ mine: "maybe" }).success);
+});
+
+test("replayListQuerySchema trims text filters and treats empty ones as unset", () => {
+  const query = replayListQuerySchema.parse({
+    uploader: " Kay ",
+    filename: "",
+    player: "   ",
+  });
+  assert.equal(query.uploader, "Kay");
+  assert.equal(query.filename, undefined);
+  assert.equal(query.player, undefined);
+  assert.ok(
+    !replayListQuerySchema.safeParse({ uploader: "x".repeat(101) }).success,
+  );
+});
+
+test("replayListQuerySchema accepts only the four formats", () => {
+  assert.equal(replayListQuerySchema.parse({ format: "FFA" }).format, "FFA");
+  assert.equal(replayListQuerySchema.parse({}).format, undefined);
+  assert.ok(!replayListQuerySchema.safeParse({ format: "ffa" }).success);
+});
+
+test("replayListQuerySchema rewrites upload bounds in the stored timestamp format", () => {
+  const query = replayListQuerySchema.parse({
+    uploadedFrom: "2026-10-02T00:00:00Z",
+    uploadedBefore: "2026-10-03T02:00:00+02:00",
+  });
+  assert.equal(query.uploadedFrom, "2026-10-02T00:00:00.000Z");
+  assert.equal(query.uploadedBefore, "2026-10-03T00:00:00.000Z");
+  assert.ok(
+    !replayListQuerySchema.safeParse({ uploadedFrom: "2026-10-02" }).success,
+  );
+});
+
+test("matchFormat works the format out from team sizes", () => {
+  const teams = (...layout: number[]) => layout.map((team) => ({ team }));
+  assert.equal(matchFormat(teams(0, 1)), "1v1");
+  assert.equal(matchFormat(teams(0, 0, 1, 1)), "2v2");
+  assert.equal(matchFormat(teams(0, 1, 2)), "FFA");
+  assert.equal(matchFormat(teams(0, 1, 2, 3)), "FFA");
+  assert.equal(matchFormat(teams(0, 0, 1)), "Other");
+  assert.equal(matchFormat(teams(0, 0, 0, 1)), "Other");
+  assert.equal(matchFormat(teams(0, 0, 1, 2)), "Other");
+  assert.equal(matchFormat(teams(0, 0)), "Other");
 });
 
 test("replayIdParamsSchema coerces positive integer ids", () => {

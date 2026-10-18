@@ -109,14 +109,69 @@ export const choosePlayerRequestSchema = z.object({
 });
 export type ChoosePlayerRequest = z.infer<typeof choosePlayerRequestSchema>;
 
+// The list's format filter. Worked out from team sizes, counting bots as
+// players: two teams of one is 1v1, two teams of two is 2v2, three or four
+// players each on their own team is FFA, and any other layout (2v1, 3v1,
+// 2v1v1) is Other. The server's SQL for the filter (findReplayIds in
+// apps/server/src/db/replays.ts) follows the same rule.
+export const matchFormatSchema = z.enum(["1v1", "2v2", "FFA", "Other"]);
+export type MatchFormat = z.infer<typeof matchFormatSchema>;
+
+export function matchFormat(players: Pick<MatchPlayer, "team">[]): MatchFormat {
+  const teamSizes = new Map<number, number>();
+  for (const { team } of players) {
+    teamSizes.set(team, (teamSizes.get(team) ?? 0) + 1);
+  }
+  const sizes = [...teamSizes.values()];
+  if (sizes.length === 2 && sizes.every((size) => size === 1)) {
+    return "1v1";
+  }
+  if (sizes.length === 2 && sizes.every((size) => size === 2)) {
+    return "2v2";
+  }
+  if (sizes.length >= 3 && sizes.every((size) => size === 1)) {
+    return "FFA";
+  }
+  return "Other";
+}
+
+// A text filter matches case-insensitively anywhere in the value. It is
+// trimmed, and an empty one counts as unset.
+const textFilter = z
+  .string()
+  .trim()
+  .max(100)
+  .optional()
+  .transform((value) => value || undefined);
+
+// An instant, rewritten in the toISOString() format the database stores, so
+// the two compare correctly as strings.
+const instantFilter = z.iso
+  .datetime({ offset: true })
+  .transform((value) => new Date(value).toISOString())
+  .optional();
+
 // GET /api/replays?page=N (public): processed replays from every uploader,
 // newest upload first, `replayPageSize` per page. With `mine=true` (signed
 // in, 401 otherwise) it lists the user's own replays at every status
 // instead. The page maximum keeps the SQL OFFSET a valid integer; a page
 // past the end is just empty.
+//
+// Every other parameter is an optional filter, and a replay must match all
+// of them: `uploader` (username), `filename` (original filename) and
+// `player` (any in-replay player name) are text filters, `format` is a
+// MatchFormat, and `uploadedFrom` (inclusive) and `uploadedBefore`
+// (exclusive) bound the upload time. The dates are instants, so the web app
+// turns the viewer's local days into them.
 export const replayListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   mine: z.stringbool().default(false),
+  uploader: textFilter,
+  filename: textFilter,
+  player: textFilter,
+  format: matchFormatSchema.optional(),
+  uploadedFrom: instantFilter,
+  uploadedBefore: instantFilter,
 });
 export type ReplayListQuery = z.infer<typeof replayListQuerySchema>;
 

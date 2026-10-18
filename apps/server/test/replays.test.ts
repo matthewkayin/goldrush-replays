@@ -1,14 +1,18 @@
 // Checks the "Upload a replay and say which player I was" story, the public
-// replay list and "My replays" through the HTTP API, with the real analyzer.
+// replay list, "My replays" and the list's filters through the HTTP API,
+// with the real analyzer.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type Database from "better-sqlite3";
 import {
   apiErrorSchema,
+  matchFormat,
   maxReplayFileBytes,
   replayPageSchema,
   replayPageSize,
   replaySchema,
   uploadResponseSchema,
+  type Replay,
 } from "@goldrush/shared";
 import type { App } from "../src/app.ts";
 import { buildTestApp, buildTestAppWithDb, registerUser } from "./helpers.ts";
@@ -444,7 +448,7 @@ test("a new user's own replay list is empty", async (t) => {
   });
 });
 
-test("an invalid page number is a 400", async (t) => {
+test("an invalid page number or filter is a 400", async (t) => {
   const app = buildTestApp(t);
   const { token } = await registerUser(app);
   for (const query of [
@@ -455,9 +459,195 @@ test("an invalid page number is a 400", async (t) => {
     // Too large for the SQL OFFSET.
     "?page=1e300",
     "?mine=maybe",
+    "?format=3v3",
+    "?uploadedFrom=2026-10-01",
+    "?uploadedBefore=yesterday",
+    `?player=${"x".repeat(101)}`,
   ]) {
     const response = await listReplays(app, token, query);
     assert.equal(response.statusCode, 400, query);
     apiErrorSchema.parse(response.json());
   }
+});
+
+// Queues a test replay and marks it processed at the given upload time, so
+// the public list shows it.
+async function processedTestReplay(
+  app: App,
+  db: Database.Database,
+  token: string,
+  name: string,
+  uploadedAt: string,
+): Promise<Replay> {
+  const replay = await queueTestReplay(app, token, name, 0);
+  db.prepare(
+    "UPDATE replays SET status = 'processed', uploaded_at = ? WHERE id = ?",
+  ).run(uploadedAt, replay.id);
+  return replay;
+}
+
+async function listedIds(
+  app: App,
+  token: string | undefined,
+  query: string,
+): Promise<number[]> {
+  const response = await listReplays(app, token, query);
+  assert.equal(response.statusCode, 200, response.body);
+  const page = replayPageSchema.parse(response.json());
+  assert.equal(page.total, page.replays.length, query);
+  return page.replays.map((replay) => replay.id);
+}
+
+test("text filters match case-insensitively anywhere in the value, with % and _ taken literally", async (t) => {
+  const { app, db } = buildTestAppWithDb(t);
+  const { token: kayin } = await registerUser(app, "Kayin");
+  const { token: xkayx } = await registerUser(app, "xKAYx");
+  const { token: stew } = await registerUser(app, "stew");
+  const at = new Date(Date.UTC(2026, 9, 1)).toISOString();
+  const first = await processedTestReplay(app, db, kayin, "test_loss.rep", at);
+  const second = await processedTestReplay(app, db, xkayx, "test_ffa.rep", at);
+  const third = await processedTestReplay(app, db, stew, "test_team.rep", at);
+  const rename = db.prepare(
+    "UPDATE replays SET original_filename = ? WHERE id = ?",
+  );
+  rename.run("Final 100%.rep", first.id);
+  rename.run("final_1000.rep", second.id);
+  rename.run("practice.rep", third.id);
+  // A player other than the uploader's, so the player filter is seen to
+  // look at everyone in the replay.
+  db.prepare(
+    "UPDATE match_players SET name = 'Gold_Digger' WHERE replay_id = ? AND slot = 2",
+  ).run(third.id);
+
+  const sorted = async (query: string) =>
+    (await listedIds(app, undefined, query)).sort((a, b) => a - b);
+  assert.deepEqual(await sorted("?uploader=kay"), [first.id, second.id]);
+  assert.deepEqual(await sorted("?uploader=KAYIN"), [first.id]);
+  assert.deepEqual(await sorted("?uploader=%20stew%20"), [third.id]);
+  assert.deepEqual(await sorted("?filename=FINAL"), [first.id, second.id]);
+  assert.deepEqual(await sorted("?filename=100%25"), [first.id]);
+  assert.deepEqual(await sorted("?filename=l_1"), [second.id]);
+  assert.deepEqual(await sorted("?filename=l%251"), []);
+  assert.deepEqual(await sorted("?player=gold_dig"), [third.id]);
+  assert.deepEqual(await sorted("?player=bot"), [
+    first.id,
+    second.id,
+    third.id,
+  ]);
+  assert.deepEqual(await sorted("?player=STEW"), [first.id, third.id]);
+  // An empty filter is no filter.
+  assert.deepEqual(await sorted("?uploader=&player=%20"), [
+    first.id,
+    second.id,
+    third.id,
+  ]);
+});
+
+test("the format filter works the format out from team sizes, as the list shows it", async (t) => {
+  const { app, db } = buildTestAppWithDb(t);
+  const { token } = await registerUser(app, "stew");
+  const at = new Date(Date.UTC(2026, 9, 1)).toISOString();
+  const oneVsOne = await processedTestReplay(
+    app,
+    db,
+    token,
+    "test_loss.rep",
+    at,
+  );
+  const twoVsTwo = await processedTestReplay(
+    app,
+    db,
+    token,
+    "test_team.rep",
+    at,
+  );
+  const ffa = await processedTestReplay(app, db, token, "test_ffa.rep", at);
+  // A 2v1v1, made from the FFA by putting two players on one team.
+  const other = await processedTestReplay(app, db, token, "test_ffa.rep", at);
+  db.prepare(
+    "UPDATE match_players SET team = 0 WHERE replay_id = ? AND slot = 1",
+  ).run(other.id);
+
+  const expected = { "1v1": oneVsOne, "2v2": twoVsTwo, FFA: ffa, Other: other };
+  for (const [format, replay] of Object.entries(expected)) {
+    const ids = await listedIds(app, undefined, `?format=${format}`);
+    assert.deepEqual(ids, [replay.id], format);
+    const [listed] = replayPageSchema.parse(
+      (await listReplays(app, undefined, `?format=${format}`)).json(),
+    ).replays;
+    assert.equal(matchFormat(listed!.players), format);
+  }
+});
+
+test("the upload date filter includes its start and excludes its end", async (t) => {
+  const { app, db } = buildTestAppWithDb(t);
+  const { token } = await registerUser(app, "stew");
+  const times = [
+    "2026-10-01T23:59:59.999Z",
+    "2026-10-02T00:00:00.000Z",
+    "2026-10-02T23:59:59.999Z",
+    "2026-10-03T00:00:00.000Z",
+  ];
+  const ids: number[] = [];
+  for (const time of times) {
+    ids.push(
+      (await processedTestReplay(app, db, token, "test_loss.rep", time)).id,
+    );
+  }
+  const [beforeDay, dayStart, dayEnd, afterDay] = ids;
+
+  const day =
+    "uploadedFrom=2026-10-02T00:00:00Z&uploadedBefore=2026-10-03T00:00:00Z";
+  assert.deepEqual(await listedIds(app, undefined, `?${day}`), [
+    dayEnd,
+    dayStart,
+  ]);
+  // Either end can be left out, and an offset is turned into UTC.
+  assert.deepEqual(
+    await listedIds(
+      app,
+      undefined,
+      "?uploadedFrom=2026-10-03T02:00:00%2B02:00",
+    ),
+    [afterDay],
+  );
+  assert.deepEqual(
+    await listedIds(app, undefined, "?uploadedBefore=2026-10-02T00:00:00.000Z"),
+    [beforeDay],
+  );
+});
+
+test("filters combine, and combine with my replays at every status", async (t) => {
+  const { app, db } = buildTestAppWithDb(t);
+  const { token } = await registerUser(app, "stew");
+  const { token: otherToken } = await registerUser(app, "bread");
+  const early = new Date(Date.UTC(2026, 9, 1)).toISOString();
+  const late = new Date(Date.UTC(2026, 9, 5)).toISOString();
+  const match = await processedTestReplay(
+    app,
+    db,
+    token,
+    "test_loss.rep",
+    late,
+  );
+  await processedTestReplay(app, db, token, "test_loss.rep", early);
+  await processedTestReplay(app, db, token, "test_ffa.rep", late);
+  await processedTestReplay(app, db, otherToken, "test_loss.rep", late);
+  // Unprocessed, so only "My replays" shows it.
+  const awaiting = await uploadTestReplay(app, token, "test_loss.rep");
+  db.prepare("UPDATE replays SET uploaded_at = ? WHERE id = ?").run(
+    new Date(Date.UTC(2026, 9, 6)).toISOString(),
+    awaiting.id,
+  );
+
+  const filters = "uploader=st&format=1v1&uploadedFrom=2026-10-03T00:00:00Z";
+  assert.deepEqual(await listedIds(app, undefined, `?${filters}`), [match.id]);
+  assert.deepEqual(await listedIds(app, token, `?mine=true&${filters}`), [
+    awaiting.id,
+    match.id,
+  ]);
+  assert.deepEqual(
+    await listedIds(app, otherToken, `?mine=true&${filters}`),
+    [],
+  );
 });

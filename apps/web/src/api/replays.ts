@@ -1,8 +1,13 @@
 // Calls to /api/replays and the hooks the upload and replay list pages use.
 // Each page of the list lives in the TanStack Query cache under
-// replayPageKey(page, mine), and uploads and player choices invalidate every
+// replayPageKey(params), and uploads and player choices invalidate every
 // page, since either one changes what the list shows.
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   replayPageSchema,
   replaySchema,
@@ -12,12 +17,16 @@ import {
   type ReplayPage,
   type UploadResult,
 } from "@goldrush/shared";
+import {
+  replayListQuery,
+  type ListParams,
+} from "../pages/replays/page-param.ts";
 import { apiGet, apiPost } from "./client.ts";
 
 const replaysKey = ["replays"] as const;
 
-export function replayPageKey(page: number, mine: boolean) {
-  return [...replaysKey, { page, mine }] as const;
+export function replayPageKey(params: ListParams) {
+  return [...replaysKey, params] as const;
 }
 
 // How often the list is refetched while a replay on it is being analyzed.
@@ -39,13 +48,9 @@ export function choosePlayer(replayId: number, slot: number): Promise<Replay> {
 }
 
 // `mine` lists the signed-in user's own replays at every status instead of
-// processed replays from everyone.
-export function fetchReplayPage(
-  page: number,
-  mine: boolean,
-): Promise<ReplayPage> {
-  const mineParam = mine ? "&mine=true" : "";
-  return apiGet(`/api/replays?page=${page}${mineParam}`, replayPageSchema);
+// processed replays from everyone. The filters narrow either list.
+export function fetchReplayPage(params: ListParams): Promise<ReplayPage> {
+  return apiGet(`/api/replays?${replayListQuery(params)}`, replayPageSchema);
 }
 
 // True while the worker still has to finish a replay on the page, so the
@@ -56,10 +61,12 @@ export function pageHasPendingAnalysis(page: ReplayPage): boolean {
   );
 }
 
-export function useReplayPage(page: number, mine: boolean) {
+// While a new page or filter loads, the previous page stays on screen.
+export function useReplayPage(params: ListParams) {
   return useQuery({
-    queryKey: replayPageKey(page, mine),
-    queryFn: () => fetchReplayPage(page, mine),
+    queryKey: replayPageKey(params),
+    queryFn: () => fetchReplayPage(params),
+    placeholderData: keepPreviousData,
     refetchInterval: (query) =>
       query.state.data && pageHasPendingAnalysis(query.state.data)
         ? replayPollIntervalMs

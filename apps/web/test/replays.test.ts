@@ -15,13 +15,17 @@ import {
   uploadReplays,
 } from "../src/api/replays.ts";
 import {
+  hasFilters,
   listParamsFromSearch,
   listSearchParams,
+  noFilters,
   pageCount,
+  replayListQuery,
+  withFilters,
+  type ListParams,
 } from "../src/pages/replays/page-param.ts";
 import {
   formatDuration,
-  matchFormat,
   uploaderPlayer,
   uploaderResultLabel,
   winners,
@@ -61,6 +65,21 @@ function makeReplay(overrides: Partial<Replay> = {}): Replay {
       },
     ],
     ...overrides,
+  };
+}
+
+// The plain public list, page 1, with any changes.
+function listParams(changes: Partial<ListParams> = {}): ListParams {
+  return {
+    page: 1,
+    mine: false,
+    uploader: "",
+    filename: "",
+    player: "",
+    format: null,
+    from: null,
+    to: null,
+    ...changes,
   };
 }
 
@@ -110,7 +129,7 @@ test("choosePlayer posts the slot and returns the queued replay", async (t) => {
 test("fetchReplayPage asks for the page of the public list and parses it", async (t) => {
   const page = { ...makePage([makeReplay()]), page: 3, total: 41 };
   const requests = stubFetch(t, Response.json(page));
-  assert.deepEqual(await fetchReplayPage(3, false), page);
+  assert.deepEqual(await fetchReplayPage(listParams({ page: 3 })), page);
   assert.equal(requests[0]!.method, "GET");
   const url = new URL(requests[0]!.url);
   assert.equal(url.pathname, "/api/replays");
@@ -120,10 +139,25 @@ test("fetchReplayPage asks for the page of the public list and parses it", async
 
 test("fetchReplayPage asks for the user's own replays when mine is set", async (t) => {
   const requests = stubFetch(t, Response.json(makePage([])));
-  await fetchReplayPage(2, true);
+  await fetchReplayPage(listParams({ page: 2, mine: true }));
   const url = new URL(requests[0]!.url);
   assert.equal(url.searchParams.get("page"), "2");
   assert.equal(url.searchParams.get("mine"), "true");
+});
+
+test("fetchReplayPage sends the filters, with the days as instants", async (t) => {
+  const requests = stubFetch(t, Response.json(makePage([])));
+  await fetchReplayPage(
+    listParams({ uploader: "kay", format: "2v2", from: "2026-10-02" }),
+  );
+  const url = new URL(requests[0]!.url);
+  assert.equal(url.searchParams.get("uploader"), "kay");
+  assert.equal(url.searchParams.get("format"), "2v2");
+  assert.equal(
+    url.searchParams.get("uploadedFrom"),
+    new Date(2026, 9, 2).toISOString(),
+  );
+  assert.equal(url.searchParams.get("filename"), null);
 });
 
 test("the list polls only while a replay on it is queued or processing", () => {
@@ -207,34 +241,95 @@ test("listParamsFromSearch falls back to page 1 for anything but a page number",
 test("listParamsFromSearch reads mine, and a bad mine doesn't reset the page", () => {
   const params = (query: string) =>
     listParamsFromSearch(new URLSearchParams(query));
-  assert.deepEqual(params(""), { page: 1, mine: false });
-  assert.deepEqual(params("mine=true&page=2"), { page: 2, mine: true });
-  assert.deepEqual(params("mine=false"), { page: 1, mine: false });
-  assert.deepEqual(params("mine=maybe&page=4"), { page: 4, mine: false });
+  assert.deepEqual(params(""), listParams());
+  assert.deepEqual(
+    params("mine=true&page=2"),
+    listParams({ page: 2, mine: true }),
+  );
+  assert.deepEqual(params("mine=false"), listParams());
+  assert.deepEqual(params("mine=maybe&page=4"), listParams({ page: 4 }));
+});
+
+test("listParamsFromSearch reads the filters, and drops each bad one on its own", () => {
+  const params = (query: string) =>
+    listParamsFromSearch(new URLSearchParams(query));
+  assert.deepEqual(
+    params(
+      "uploader=Kay%20&filename=100%25&player=Bot&format=FFA&from=2026-10-01&to=2026-10-31",
+    ),
+    listParams({
+      uploader: "Kay ",
+      filename: "100%",
+      player: "Bot",
+      format: "FFA",
+      from: "2026-10-01",
+      to: "2026-10-31",
+    }),
+  );
+  assert.deepEqual(
+    params(
+      `format=ffa&from=2026-02-30&to=10/31/2026&player=${"x".repeat(101)}&page=3`,
+    ),
+    listParams({ page: 3 }),
+  );
+  // A two-digit year is the year itself, as a date field passes it while
+  // the year is typed.
+  assert.equal(params("from=0020-01-01").from, "0020-01-01");
 });
 
 test("listSearchParams leaves out defaults and round-trips", () => {
-  assert.equal(listSearchParams({ page: 1, mine: false }).toString(), "");
-  assert.equal(listSearchParams({ page: 3, mine: false }).toString(), "page=3");
+  assert.equal(listSearchParams(listParams()).toString(), "");
+  assert.equal(listSearchParams(listParams({ page: 3 })).toString(), "page=3");
   for (const params of [
-    { page: 1, mine: true },
-    { page: 5, mine: true },
-    { page: 2, mine: false },
+    listParams({ mine: true }),
+    listParams({ page: 5, mine: true }),
+    listParams({ page: 2 }),
+    listParams({
+      page: 2,
+      uploader: "Kay",
+      filename: "a&b=c",
+      player: " Bot ",
+      format: "Other",
+      from: "2026-10-01",
+      to: "2026-10-31",
+    }),
   ]) {
     assert.deepEqual(listParamsFromSearch(listSearchParams(params)), params);
   }
 });
 
-test("matchFormat works the format out from team sizes", () => {
-  const teams = (...layout: number[]) => layout.map((team) => ({ team }));
-  assert.equal(matchFormat(teams(0, 1)), "1v1");
-  assert.equal(matchFormat(teams(0, 0, 1, 1)), "2v2");
-  assert.equal(matchFormat(teams(0, 1, 2)), "FFA");
-  assert.equal(matchFormat(teams(0, 1, 2, 3)), "FFA");
-  assert.equal(matchFormat(teams(0, 0, 1)), "Other");
-  assert.equal(matchFormat(teams(0, 0, 0, 1)), "Other");
-  assert.equal(matchFormat(teams(0, 0, 1, 2)), "Other");
-  assert.equal(matchFormat(teams(0, 0)), "Other");
+test("a filter change goes back to page 1, and clearing keeps My replays", () => {
+  const filtered = listParams({ page: 4, mine: true, player: "Bot" });
+  assert.deepEqual(
+    withFilters(filtered, { format: "1v1" }),
+    listParams({ mine: true, player: "Bot", format: "1v1" }),
+  );
+  assert.deepEqual(
+    withFilters(filtered, noFilters),
+    listParams({ mine: true }),
+  );
+});
+
+test("hasFilters ignores My replays and blank text", () => {
+  assert.equal(hasFilters(listParams({ mine: true, uploader: "  " })), false);
+  assert.equal(hasFilters(listParams({ uploader: "k" })), true);
+  assert.equal(hasFilters(listParams({ to: "2026-10-01" })), true);
+});
+
+test("replayListQuery makes From and To whole local days, either one optional", () => {
+  const query = replayListQuery(
+    listParams({ from: "2026-12-30", to: "2026-12-31", player: "  " }),
+  );
+  assert.deepEqual(Object.fromEntries(query), {
+    page: "1",
+    uploadedFrom: new Date(2026, 11, 30).toISOString(),
+    // The end is exclusive, so it is the midnight after "To".
+    uploadedBefore: new Date(2027, 0, 1).toISOString(),
+  });
+  assert.deepEqual(
+    Object.fromEntries(replayListQuery(listParams({ to: "2026-02-28" }))),
+    { page: "1", uploadedBefore: new Date(2026, 2, 1).toISOString() },
+  );
 });
 
 test("winners are the players with a win, and none when everyone lost", () => {

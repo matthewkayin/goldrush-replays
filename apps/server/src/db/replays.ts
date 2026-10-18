@@ -2,7 +2,12 @@
 // match_players rows, as the one `replaySchema` shape every endpoint returns.
 // The writes further down are for upload, choosing a player and the worker.
 import type Database from "better-sqlite3";
-import { replaySchema, type Replay, type ReplayStatus } from "@goldrush/shared";
+import {
+  replaySchema,
+  type MatchFormat,
+  type Replay,
+  type ReplayStatus,
+} from "@goldrush/shared";
 
 interface ReplayRow {
   id: number;
@@ -117,56 +122,105 @@ export function findReplayOwnership(
   return row ?? null;
 }
 
-// The ids of one page of processed replays from every uploader, newest
-// upload first. Read them with findReplays.
-export function findProcessedReplayIds(
+// Which replays a list shows. With a `userId` it is that user's "My
+// replays", at every status; without one it is the public list of processed
+// replays. Every other field is an optional filter (see
+// replayListQuerySchema in @goldrush/shared), and a replay must match all of
+// them.
+export interface ReplayFilter {
+  userId: number | null;
+  uploader?: string | undefined;
+  filename?: string | undefined;
+  player?: string | undefined;
+  format?: MatchFormat | undefined;
+  uploadedFrom?: string | undefined;
+  uploadedBefore?: string | undefined;
+}
+
+interface FilterParams {
+  userId: number | null;
+  uploader: string | null;
+  filename: string | null;
+  player: string | null;
+  format: MatchFormat | null;
+  uploadedFrom: string | null;
+  uploadedBefore: string | null;
+}
+
+// Every filter is always bound, as NULL when unset, so the SQL never
+// changes. Text filters use instr(), which has no wildcards, so `%` and `_`
+// match literally. SQLite's lower() folds only ASCII case.
+//
+// The format is worked out from team sizes, the same rule as matchFormat()
+// in @goldrush/shared.
+const filteredReplays = `
+  FROM replays JOIN users ON users.id = replays.uploader_user_id
+  WHERE (CASE WHEN @userId IS NULL THEN replays.status = 'processed'
+              ELSE replays.uploader_user_id = @userId END)
+    AND (@uploader IS NULL
+         OR instr(lower(users.username), lower(@uploader)) > 0)
+    AND (@filename IS NULL
+         OR instr(lower(replays.original_filename), lower(@filename)) > 0)
+    AND (@player IS NULL OR EXISTS (
+          SELECT 1 FROM match_players
+          WHERE match_players.replay_id = replays.id
+            AND instr(lower(match_players.name), lower(@player)) > 0))
+    AND (@format IS NULL OR @format = (
+          SELECT CASE
+                   WHEN count(*) = 2 AND max(size) = 1 THEN '1v1'
+                   WHEN count(*) = 2 AND min(size) = 2 AND max(size) = 2
+                     THEN '2v2'
+                   WHEN count(*) >= 3 AND max(size) = 1 THEN 'FFA'
+                   ELSE 'Other'
+                 END
+          FROM (SELECT count(*) AS size FROM match_players
+                WHERE match_players.replay_id = replays.id
+                GROUP BY team)))
+    AND (@uploadedFrom IS NULL OR replays.uploaded_at >= @uploadedFrom)
+    AND (@uploadedBefore IS NULL OR replays.uploaded_at < @uploadedBefore)`;
+
+function filterParams(filter: ReplayFilter): FilterParams {
+  return {
+    userId: filter.userId,
+    uploader: filter.uploader ?? null,
+    filename: filter.filename ?? null,
+    player: filter.player ?? null,
+    format: filter.format ?? null,
+    uploadedFrom: filter.uploadedFrom ?? null,
+    uploadedBefore: filter.uploadedBefore ?? null,
+  };
+}
+
+// The ids of one page of the replays the filter selects, newest upload
+// first. Read them with findReplays.
+export function findReplayIds(
   db: Database.Database,
+  filter: ReplayFilter,
   limit: number,
   offset: number,
 ): number[] {
   return db
-    .prepare<[number, number], { id: number }>(
-      `SELECT id FROM replays WHERE status = 'processed'
-       ORDER BY uploaded_at DESC, id DESC LIMIT ? OFFSET ?`,
+    .prepare<
+      [FilterParams & { limit: number; offset: number }],
+      { id: number }
+    >(
+      `SELECT replays.id ${filteredReplays}
+       ORDER BY replays.uploaded_at DESC, replays.id DESC
+       LIMIT @limit OFFSET @offset`,
     )
-    .all(limit, offset)
+    .all({ ...filterParams(filter), limit, offset })
     .map(({ id }) => id);
 }
 
-export function countProcessedReplays(db: Database.Database): number {
-  return db
-    .prepare<[], { n: number }>(
-      "SELECT count(*) AS n FROM replays WHERE status = 'processed'",
-    )
-    .get()!.n;
-}
-
-// The ids of one page of a user's replays at every status, newest first. Read them with
-// findReplays.
-export function findUserReplayIds(
+export function countReplays(
   db: Database.Database,
-  userId: number,
-  limit: number,
-  offset: number,
-): number[] {
-  return db
-    .prepare<[number, number, number], { id: number }>(
-      `SELECT id FROM replays WHERE uploader_user_id = ?
-       ORDER BY uploaded_at DESC, id DESC LIMIT ? OFFSET ?`,
-    )
-    .all(userId, limit, offset)
-    .map(({ id }) => id);
-}
-
-export function countUserReplays(
-  db: Database.Database,
-  userId: number,
+  filter: ReplayFilter,
 ): number {
   return db
-    .prepare<[number], { n: number }>(
-      "SELECT count(*) AS n FROM replays WHERE uploader_user_id = ?",
+    .prepare<[FilterParams], { n: number }>(
+      `SELECT count(*) AS n ${filteredReplays}`,
     )
-    .get(userId)!.n;
+    .get(filterParams(filter))!.n;
 }
 
 // Saves the uploader's player and moves the replay to `queued`. Insert its

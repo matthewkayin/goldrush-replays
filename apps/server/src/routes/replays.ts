@@ -1,6 +1,6 @@
 // Uploading .rep files, choosing which player the uploader was (which
 // queues the analysis), and the replay list: public for processed replays,
-// or the signed-in user's own at every status. The public match endpoints
+// or the signed-in user's own at every status, either one filtered. The public match endpoints
 // are in matches.ts.
 import multipart from "@fastify/multipart";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
@@ -25,13 +25,11 @@ import { insertJob } from "../db/jobs.ts";
 import { insertMatchPlayers } from "../db/match-players.ts";
 import { insertReplayFile } from "../db/replay-files.ts";
 import {
-  countProcessedReplays,
-  countUserReplays,
-  findProcessedReplayIds,
+  countReplays,
   findReplay,
+  findReplayIds,
   findReplayOwnership,
   findReplays,
-  findUserReplayIds,
   insertReplay,
   setUploaderSlot,
 } from "../db/replays.ts";
@@ -155,19 +153,14 @@ export const replayRoutes: FastifyPluginAsyncZod<ReplayRouteOptions> = async (
       },
     },
     async (request) => {
-      const { page, mine } = request.query;
-      const offset = (page - 1) * replayPageSize;
-      let ids: number[];
-      let total: number;
+      const { page, mine, ...filters } = request.query;
       if (mine) {
         await requireUser(request);
-        const userId = request.user!.id;
-        ids = findUserReplayIds(db, userId, replayPageSize, offset);
-        total = countUserReplays(db, userId);
-      } else {
-        ids = findProcessedReplayIds(db, replayPageSize, offset);
-        total = countProcessedReplays(db);
       }
+      const filter = { userId: mine ? request.user!.id : null, ...filters };
+      const offset = (page - 1) * replayPageSize;
+      const ids = findReplayIds(db, filter, replayPageSize, offset);
+      const total = countReplays(db, filter);
       return {
         replays: findReplays(db, ids),
         page,
