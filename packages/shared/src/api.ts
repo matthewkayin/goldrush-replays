@@ -4,6 +4,7 @@
 // (analysisSchema in analyzer.ts). Auth contracts are in auth.ts.
 import { z } from "zod";
 import { mapTypeSchema, playerColorSchema } from "./analyzer.ts";
+import { usernameSchema } from "./auth.ts";
 
 // GET /api/health
 export const healthResponseSchema = z.object({
@@ -162,11 +163,14 @@ const instantFilter = z.iso
 // `player` (any in-replay player name) are text filters, `format` is a
 // MatchFormat, and `uploadedFrom` (inclusive) and `uploadedBefore`
 // (exclusive) bound the upload time. The dates are instants, so the web app
-// turns the viewer's local days into them.
+// turns the viewer's local days into them. `user` is the uploader's exact
+// username, unlike the `uploader` text filter, so "Kay" doesn't also match
+// "Kayin"; the profile's "See all replays" link uses it.
 export const replayListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   mine: z.stringbool().default(false),
   uploader: textFilter,
+  user: usernameSchema.optional(),
   filename: textFilter,
   player: textFilter,
   format: matchFormatSchema.optional(),
@@ -182,6 +186,32 @@ export const replayPageSchema = z.object({
   total: z.number().int().nonnegative(),
 });
 export type ReplayPage = z.infer<typeof replayPageSchema>;
+
+// GET /api/users/:username (public): a user's profile. 404 when no user
+// has that username. The username isn't checked against the registration
+// rules, so a malformed one is a 404 like any other unknown user.
+export const usernameParamsSchema = z.object({
+  username: z.string(),
+});
+export type UsernameParams = z.infer<typeof usernameParamsSchema>;
+
+export const profileRecentReplayCount = 5;
+
+// Stats count only the user's processed uploads, and in each only the
+// player they said they were. `winRate` is wins ÷ games, from 0 to 1, and
+// `averageApm` is the mean of their per-match APM; both are null with no
+// games. `recentReplays` are their `profileRecentReplayCount` newest
+// processed uploads, newest first.
+export const userProfileSchema = z.object({
+  username: z.string(),
+  games: z.number().int().nonnegative(),
+  wins: z.number().int().nonnegative(),
+  losses: z.number().int().nonnegative(),
+  winRate: z.number().min(0).max(1).nullable(),
+  averageApm: z.number().nonnegative().nullable(),
+  recentReplays: z.array(replaySchema),
+});
+export type UserProfile = z.infer<typeof userProfileSchema>;
 
 // GET /api/matches/:id (public): answers `replaySchema` at every status, so
 // the match page can show a processing state and poll. 404 when missing.

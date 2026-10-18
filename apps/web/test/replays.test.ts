@@ -21,6 +21,7 @@ import {
   noFilters,
   pageCount,
   replayListQuery,
+  userReplaysPath,
   withFilters,
   type ListParams,
 } from "../src/pages/replays/page-param.ts";
@@ -73,6 +74,7 @@ function listParams(changes: Partial<ListParams> = {}): ListParams {
   return {
     page: 1,
     mine: false,
+    user: null,
     uploader: "",
     filename: "",
     player: "",
@@ -255,9 +257,10 @@ test("listParamsFromSearch reads the filters, and drops each bad one on its own"
     listParamsFromSearch(new URLSearchParams(query));
   assert.deepEqual(
     params(
-      "uploader=Kay%20&filename=100%25&player=Bot&format=FFA&from=2026-10-01&to=2026-10-31",
+      "user=Kayin&uploader=Kay%20&filename=100%25&player=Bot&format=FFA&from=2026-10-01&to=2026-10-31",
     ),
     listParams({
+      user: "Kayin",
       uploader: "Kay ",
       filename: "100%",
       player: "Bot",
@@ -268,7 +271,7 @@ test("listParamsFromSearch reads the filters, and drops each bad one on its own"
   );
   assert.deepEqual(
     params(
-      `format=ffa&from=2026-02-30&to=10/31/2026&player=${"x".repeat(101)}&page=3`,
+      `user=a%20b&format=ffa&from=2026-02-30&to=10/31/2026&player=${"x".repeat(101)}&page=3`,
     ),
     listParams({ page: 3 }),
   );
@@ -286,6 +289,7 @@ test("listSearchParams leaves out defaults and round-trips", () => {
     listParams({ page: 2 }),
     listParams({
       page: 2,
+      user: "Kayin",
       uploader: "Kay",
       filename: "a&b=c",
       player: " Bot ",
@@ -299,10 +303,15 @@ test("listSearchParams leaves out defaults and round-trips", () => {
 });
 
 test("a filter change goes back to page 1, and clearing keeps My replays", () => {
-  const filtered = listParams({ page: 4, mine: true, player: "Bot" });
+  const filtered = listParams({
+    page: 4,
+    mine: true,
+    user: "Kayin",
+    player: "Bot",
+  });
   assert.deepEqual(
     withFilters(filtered, { format: "1v1" }),
-    listParams({ mine: true, player: "Bot", format: "1v1" }),
+    listParams({ mine: true, user: "Kayin", player: "Bot", format: "1v1" }),
   );
   assert.deepEqual(
     withFilters(filtered, noFilters),
@@ -314,6 +323,24 @@ test("hasFilters ignores My replays and blank text", () => {
   assert.equal(hasFilters(listParams({ mine: true, uploader: "  " })), false);
   assert.equal(hasFilters(listParams({ uploader: "k" })), true);
   assert.equal(hasFilters(listParams({ to: "2026-10-01" })), true);
+  assert.equal(hasFilters(listParams({ user: "Kayin" })), true);
+});
+
+test("replayListQuery sends the exact user filter as is", () => {
+  assert.deepEqual(
+    Object.fromEntries(replayListQuery(listParams({ user: "Kayin" }))),
+    { page: "1", user: "Kayin" },
+  );
+});
+
+test("userReplaysPath is the Replays page filtered to exactly that user", () => {
+  assert.equal(userReplaysPath("Kay"), "/replays?user=Kay");
+  assert.deepEqual(
+    listParamsFromSearch(
+      new URLSearchParams(userReplaysPath("Kay").split("?")[1]),
+    ),
+    listParams({ user: "Kay" }),
+  );
 });
 
 test("replayListQuery makes From and To whole local days, either one optional", () => {

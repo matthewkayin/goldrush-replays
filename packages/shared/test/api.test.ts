@@ -45,6 +45,13 @@ test("replayListQuerySchema trims text filters and treats empty ones as unset", 
   );
 });
 
+test("replayListQuerySchema takes the user filter only as a valid username, untrimmed", () => {
+  assert.equal(replayListQuerySchema.parse({ user: "Kay" }).user, "Kay");
+  assert.equal(replayListQuerySchema.parse({}).user, undefined);
+  assert.ok(!replayListQuerySchema.safeParse({ user: " Kay" }).success);
+  assert.ok(!replayListQuerySchema.safeParse({ user: "ab" }).success);
+});
+
 test("replayListQuerySchema accepts only the four formats", () => {
   assert.equal(replayListQuerySchema.parse({ format: "FFA" }).format, "FFA");
   assert.equal(replayListQuerySchema.parse({}).format, undefined);

@@ -2,7 +2,7 @@
 // the current user.
 import { z } from "zod";
 
-// Short and URL-safe, so a username can appear in a profile URL later.
+// Short and URL-safe, so a username can appear in a profile URL.
 export const usernameSchema = z
   .string()
   .regex(

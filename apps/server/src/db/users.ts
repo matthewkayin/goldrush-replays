@@ -37,6 +37,34 @@ export function findUserByUsername(
   return row ?? null;
 }
 
+export interface ProfileStats {
+  games: number;
+  wins: number;
+  losses: number;
+  // The mean of the user's per-match APM, or null with no games.
+  averageApm: number | null;
+}
+
+// A profile's stats: only the user's processed uploads, and in each only
+// the player they said they were (slot = uploader_slot).
+export function findProfileStats(
+  db: Database.Database,
+  userId: number,
+): ProfileStats {
+  return db
+    .prepare<[number], ProfileStats>(
+      `SELECT count(*) AS games,
+              coalesce(sum(match_players.result = 'win'), 0) AS wins,
+              coalesce(sum(match_players.result = 'loss'), 0) AS losses,
+              avg(match_players.apm) AS averageApm
+       FROM replays JOIN match_players
+         ON match_players.replay_id = replays.id
+        AND match_players.slot = replays.uploader_slot
+       WHERE replays.uploader_user_id = ? AND replays.status = 'processed'`,
+    )
+    .get(userId)!;
+}
+
 function isUniqueViolation(error: unknown): boolean {
   return (
     error instanceof Error &&

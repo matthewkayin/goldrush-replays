@@ -10,9 +10,11 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import { Link as RouterLink } from "react-router";
 import type { Replay } from "@goldrush/shared";
 import { replayDownloadPath } from "../../api/matches.ts";
 import { PlayerName } from "../../components/PlayerName.tsx";
+import { profilePath } from "../profile/profile-display.ts";
 import { formatTick, mapNames, teamName } from "../../display.ts";
 import { describeWinner } from "./match-data.ts";
 
@@ -55,7 +57,12 @@ export function MatchOverview({ replay }: { replay: Replay }) {
         <Chip
           label={`Uploaded ${new Date(replay.uploadedAt).toLocaleString()}`}
         />
-        <Chip label={`Uploaded by ${replay.uploaderUsername}`} />
+        <Chip
+          clickable
+          component={RouterLink}
+          to={profilePath(replay.uploaderUsername)}
+          label={`Uploaded by ${replay.uploaderUsername}`}
+        />
         {winner && <Chip color="primary" label={winner} />}
       </Box>
       <Table size="small">

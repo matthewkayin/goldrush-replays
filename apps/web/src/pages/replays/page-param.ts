@@ -4,9 +4,12 @@ import { replayListQuerySchema, type MatchFormat } from "@goldrush/shared";
 // the filters. Text filters are kept as typed (the server trims them), with
 // "" for unset. `from` and `to` are whole days (YYYY-MM-DD) in the viewer's
 // time zone, both inclusive; replayListQuery turns them into instants.
+// `user` is an exact uploader username, set by a profile's "See all
+// replays" link, or null.
 export interface ListParams {
   page: number;
   mine: boolean;
+  user: string | null;
   uploader: string;
   filename: string;
   player: string;
@@ -23,6 +26,7 @@ const maxTextLength = 100;
 const defaults: ListParams = {
   page: 1,
   mine: false,
+  user: null,
   uploader: "",
   filename: "",
   player: "",
@@ -34,6 +38,7 @@ const defaults: ListParams = {
 // The filters "Clear filters" resets. "My replays" has its own switch, so
 // it stays as it is.
 export const noFilters = {
+  user: null,
   uploader: "",
   filename: "",
   player: "",
@@ -52,10 +57,12 @@ export function listParamsFromSearch(
   const page = replayListQuerySchema.shape.page.safeParse(value("page"));
   const mine = replayListQuerySchema.shape.mine.safeParse(value("mine"));
   const format = replayListQuerySchema.shape.format.safeParse(value("format"));
+  const user = replayListQuerySchema.shape.user.safeParse(value("user"));
   const params: ListParams = {
     ...defaults,
     page: page.success ? page.data : defaults.page,
     mine: mine.success ? mine.data : defaults.mine,
+    user: (user.success && user.data) || defaults.user,
     format: (format.success && format.data) || defaults.format,
     from: parseDay(value("from")),
     to: parseDay(value("to")),
@@ -79,7 +86,7 @@ export function listSearchParams(params: ListParams): URLSearchParams {
       searchParams.set(key, params[key]);
     }
   }
-  for (const key of ["format", "from", "to"] as const) {
+  for (const key of ["user", "format", "from", "to"] as const) {
     const value = params[key];
     if (value !== null) {
       searchParams.set(key, value);
@@ -103,6 +110,7 @@ export function withFilters(
 export function hasFilters(params: ListParams): boolean {
   return (
     textKeys.some((key) => params[key].trim() !== "") ||
+    params.user !== null ||
     params.format !== null ||
     params.from !== null ||
     params.to !== null
@@ -116,6 +124,9 @@ export function replayListQuery(params: ListParams): URLSearchParams {
   const query = new URLSearchParams({ page: String(params.page) });
   if (params.mine) {
     query.set("mine", "true");
+  }
+  if (params.user !== null) {
+    query.set("user", params.user);
   }
   for (const key of textKeys) {
     if (params[key].trim() !== "") {
@@ -132,6 +143,11 @@ export function replayListQuery(params: ListParams): URLSearchParams {
     query.set("uploadedBefore", localMidnight(params.to, 1));
   }
   return query;
+}
+
+// The Replays page filtered to exactly this user's uploads.
+export function userReplaysPath(username: string): string {
+  return `/replays?${listSearchParams({ ...defaults, user: username })}`;
 }
 
 export function pageCount(total: number, pageSize: number): number {

@@ -463,6 +463,9 @@ test("an invalid page number or filter is a 400", async (t) => {
     "?uploadedFrom=2026-10-01",
     "?uploadedBefore=yesterday",
     `?player=${"x".repeat(101)}`,
+    // Not a username anyone could register.
+    "?user=ab",
+    "?user=a%20b%20c",
   ]) {
     const response = await listReplays(app, token, query);
     assert.equal(response.statusCode, 400, query);
@@ -541,6 +544,23 @@ test("text filters match case-insensitively anywhere in the value, with % and _ 
     second.id,
     third.id,
   ]);
+});
+
+test("the user filter matches the uploader's username exactly, and combines with other filters", async (t) => {
+  const { app, db } = buildTestAppWithDb(t);
+  const { token: kay } = await registerUser(app, "Kay");
+  const { token: kayin } = await registerUser(app, "Kayin");
+  const at = new Date(Date.UTC(2026, 9, 1)).toISOString();
+  const loss = await processedTestReplay(app, db, kay, "test_loss.rep", at);
+  const ffa = await processedTestReplay(app, db, kay, "test_ffa.rep", at);
+  await processedTestReplay(app, db, kayin, "test_loss.rep", at);
+
+  const sorted = async (query: string) =>
+    (await listedIds(app, undefined, query)).sort((a, b) => a - b);
+  assert.deepEqual(await sorted("?user=Kay"), [loss.id, ffa.id]);
+  assert.deepEqual(await sorted("?user=kay"), []);
+  assert.deepEqual(await sorted("?user=Kay&format=FFA"), [ffa.id]);
+  assert.deepEqual(await sorted("?user=Kay&uploader=kayin"), []);
 });
 
 test("the format filter works the format out from team sizes, as the list shows it", async (t) => {

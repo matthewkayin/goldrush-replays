@@ -14,6 +14,7 @@ import { authRoutes } from "./routes/auth.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { matchRoutes } from "./routes/matches.ts";
 import { replayRoutes } from "./routes/replays.ts";
+import { userRoutes } from "./routes/users.ts";
 
 export interface AppOptions {
   // The caller opens the database and closes it after the app.
@@ -63,6 +64,7 @@ export function buildApp({ db, logger, analyzerPath }: AppOptions) {
   app.register(authRoutes, routeOptions);
   app.register(replayRoutes, { ...routeOptions, analyzerPath });
   app.register(matchRoutes, routeOptions);
+  app.register(userRoutes, routeOptions);
 
   return app;
 }

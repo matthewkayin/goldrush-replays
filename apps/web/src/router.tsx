@@ -6,6 +6,7 @@ import { NotFoundPage } from "./pages/NotFoundPage.tsx";
 import { RegisterPage } from "./pages/auth/RegisterPage.tsx";
 import { SignInPage } from "./pages/auth/SignInPage.tsx";
 import { MatchPage } from "./pages/match/MatchPage.tsx";
+import { ProfilePage } from "./pages/profile/ProfilePage.tsx";
 import { ReplaysPage } from "./pages/replays/ReplaysPage.tsx";
 import { UploadPage } from "./pages/upload/UploadPage.tsx";
 
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
       { path: "/register", element: <RegisterPage /> },
       { path: "/matches/:id", element: <MatchPage /> },
       { path: "/replays", element: <ReplaysPage /> },
+      { path: "/users/:username", element: <ProfilePage /> },
       {
         element: <RequireUser />,
         children: [{ path: "/upload", element: <UploadPage /> }],

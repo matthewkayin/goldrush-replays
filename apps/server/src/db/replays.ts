@@ -130,6 +130,7 @@ export function findReplayOwnership(
 export interface ReplayFilter {
   userId: number | null;
   uploader?: string | undefined;
+  user?: string | undefined;
   filename?: string | undefined;
   player?: string | undefined;
   format?: MatchFormat | undefined;
@@ -140,6 +141,7 @@ export interface ReplayFilter {
 interface FilterParams {
   userId: number | null;
   uploader: string | null;
+  user: string | null;
   filename: string | null;
   player: string | null;
   format: MatchFormat | null;
@@ -148,7 +150,7 @@ interface FilterParams {
 }
 
 // Every filter is always bound, as NULL when unset, so the SQL never
-// changes. Text filters use instr(), which has no wildcards, so `%` and `_`
+// changes. `user` matches the username exactly. Text filters use instr(), which has no wildcards, so `%` and `_`
 // match literally. SQLite's lower() folds only ASCII case.
 //
 // The format is worked out from team sizes, the same rule as matchFormat()
@@ -159,6 +161,7 @@ const filteredReplays = `
               ELSE replays.uploader_user_id = @userId END)
     AND (@uploader IS NULL
          OR instr(lower(users.username), lower(@uploader)) > 0)
+    AND (@user IS NULL OR users.username = @user)
     AND (@filename IS NULL
          OR instr(lower(replays.original_filename), lower(@filename)) > 0)
     AND (@player IS NULL OR EXISTS (
@@ -183,6 +186,7 @@ function filterParams(filter: ReplayFilter): FilterParams {
   return {
     userId: filter.userId,
     uploader: filter.uploader ?? null,
+    user: filter.user ?? null,
     filename: filter.filename ?? null,
     player: filter.player ?? null,
     format: filter.format ?? null,

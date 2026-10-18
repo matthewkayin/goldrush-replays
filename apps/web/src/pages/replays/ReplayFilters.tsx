@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Box, Button, MenuItem, TextField } from "@mui/material";
+import { Box, Button, Chip, MenuItem, TextField } from "@mui/material";
 import { matchFormatSchema, type MatchFormat } from "@goldrush/shared";
 import {
   hasFilters,
@@ -24,6 +24,13 @@ export function ReplayFilters({
     <Box
       sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center" }}
     >
+      {/* The exact account from a profile's "See all replays" link. */}
+      {params.user !== null && (
+        <Chip
+          label={`Uploaded by ${params.user}`}
+          onDelete={() => onChange({ user: null })}
+        />
+      )}
       <TextFilter
         label="Uploader"
         value={params.uploader}
